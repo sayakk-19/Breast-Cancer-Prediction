@@ -1,0 +1,3 @@
+[tool.pytest.ini_options]
+testpaths = ["backend/tests", "streamlit_app/tests"]
+addopts = "--basetemp=.test-artifacts/pytest"

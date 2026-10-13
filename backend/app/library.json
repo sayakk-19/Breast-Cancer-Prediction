@@ -1,0 +1,206 @@
+[
+  {
+    "id": "understanding-breast-cancer",
+    "audience": ["public", "patient"],
+    "category": "The essentials",
+    "title": "Understanding breast cancer",
+    "summary": "A clear introduction to breast tissue, abnormal cell growth, and the meaning of invasive cancer.",
+    "body": [
+      "Breast cancer develops when abnormal cells in breast tissue grow without control. It often begins in the ducts that carry milk or the lobules that produce it. Breast cancer can also affect men.",
+      "Invasive cancer has grown into surrounding tissue and may spread elsewhere. The type of cancer and its extent help a care team understand a person's diagnosis. The WHO overview explains these ideas in more detail."
+    ],
+    "source": {
+      "label": "World Health Organization · Breast cancer",
+      "url": "https://www.who.int/news-room/fact-sheets/detail/breast-cancer"
+    },
+    "reading_minutes": 2,
+    "tags": ["basics", "anatomy", "terminology"]
+  },
+  {
+    "id": "recognising-breast-changes",
+    "audience": ["public", "patient"],
+    "category": "Health awareness",
+    "title": "Breast changes worth discussing",
+    "summary": "Learn why a new change deserves clinical attention, even when it has a benign explanation.",
+    "body": [
+      "Breast changes have many possible causes. A new lump, a change in breast shape, unusual nipple discharge, or changes in the skin can be reasons for a conversation with a health professional. Most breast changes are not cancer.",
+      "NCI explains that a recent normal mammogram does not remove the need to discuss a new change. Symptoms alone cannot establish a diagnosis; a clinician considers the history, examination, and appropriate investigations."
+    ],
+    "source": {
+      "label": "National Cancer Institute · Breast Cancer Signs and Symptoms",
+      "url": "https://www.cancer.gov/types/breast/symptoms"
+    },
+    "reading_minutes": 2,
+    "tags": ["breast changes", "care conversations", "awareness"]
+  },
+  {
+    "id": "screening-and-diagnosis",
+    "audience": ["public", "patient"],
+    "category": "Understanding care",
+    "title": "Screening and diagnosis serve different purposes",
+    "summary": "Understand what screening looks for and why an abnormal result needs further assessment.",
+    "body": [
+      "Screening looks for breast cancer in people who have no symptoms. A screening result can suggest that more investigation is needed; it does not by itself confirm cancer.",
+      "Screening has benefits and limitations, including false positive and false negative results. NCI's guide explains these terms and the role of mammography. Screening choices depend on individual circumstances and the guidance used by a person's care team."
+    ],
+    "source": {
+      "label": "National Cancer Institute · Screening for Breast Cancer",
+      "url": "https://www.cancer.gov/types/breast/screening"
+    },
+    "reading_minutes": 2,
+    "tags": ["screening", "mammography", "test results"]
+  },
+  {
+    "id": "nuclear-measurements",
+    "audience": ["student", "researcher"],
+    "category": "Measurement literacy",
+    "title": "Where nuclear measurements come from",
+    "summary": "Connect numerical features to their original specimen and imaging process.",
+    "body": [
+      "In the Wisconsin Diagnostic dataset, features were computed from digitized images of fine needle aspirates of breast masses. They describe cell nuclei, rather than breast size or symptoms.",
+      "Radius describes distances from a nucleus's centre to its perimeter; texture describes variation in image grey levels. A feature name alone does not establish clinical meaning or physical units. Read the original measurement definitions before interpreting values."
+    ],
+    "source": {
+      "label": "UCI Machine Learning Repository · Wisconsin Diagnostic documentation",
+      "url": "https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic"
+    },
+    "reading_minutes": 3,
+    "tags": ["cytology", "feature provenance", "measurement"]
+  },
+  {
+    "id": "pathology-report-literacy",
+    "audience": ["student", "doctor"],
+    "category": "Clinical foundations",
+    "title": "Reading the structure of a pathology report",
+    "summary": "Distinguish a specimen description, microscopic findings, and the final diagnosis.",
+    "body": [
+      "A pathology report records the specimen's origin, how it was obtained, and a pathologist's findings. It commonly includes a gross description, a microscopic description, and a diagnosis, with comments or additional test results when relevant.",
+      "Breast cancer reports may include receptor testing and other information used in care planning. Read each finding in its report context. A selected measurement or copied term cannot stand in for the pathologist's full interpretation."
+    ],
+    "source": {
+      "label": "National Cancer Institute · Pathology Reports",
+      "url": "https://www.cancer.gov/about-cancer/diagnosis-staging/diagnosis/pathology-reports-fact-sheet"
+    },
+    "reading_minutes": 3,
+    "tags": ["pathology", "specimens", "report interpretation"]
+  },
+  {
+    "id": "breast-cancer-terminology",
+    "audience": ["student"],
+    "category": "Clinical foundations",
+    "title": "Types, invasion, and molecular subtypes",
+    "summary": "Build a vocabulary that keeps anatomical origin and biological features distinct.",
+    "body": [
+      "Ductal and lobular describe where a cancer began. In situ and invasive describe whether abnormal cells have spread beyond their original location into surrounding breast tissue.",
+      "Molecular subtypes use biological features such as hormone receptors and HER2. These terms answer different questions, so a single benign or malignant label cannot describe every aspect of a breast cancer diagnosis. NCI's types guide provides a useful starting glossary."
+    ],
+    "source": {
+      "label": "National Cancer Institute · Types of Breast Cancer",
+      "url": "https://www.cancer.gov/types/breast/breast-cancer-types"
+    },
+    "reading_minutes": 3,
+    "tags": ["terminology", "invasion", "biomarkers"]
+  },
+  {
+    "id": "dataset-provenance",
+    "audience": ["researcher", "student"],
+    "category": "Research practice",
+    "title": "Open data begins with provenance",
+    "summary": "Inspect the population, target, feature definitions, and licence before planning an analysis.",
+    "body": [
+      "UCI documents 569 instances and 30 features for the Wisconsin Diagnostic dataset. Diagnosis is the target, and the record identifier has a separate role. The repository includes creators, a DOI, and attribution requirements.",
+      "Research takeaway: a documented public dataset supports reproducible study, but its scope must be compared with the intended population and task. Repository availability alone does not establish suitability for clinical use."
+    ],
+    "source": {
+      "label": "UCI Machine Learning Repository · Breast Cancer Wisconsin (Diagnostic)",
+      "url": "https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic"
+    },
+    "reading_minutes": 3,
+    "tags": ["open data", "provenance", "reproducibility"]
+  },
+  {
+    "id": "transparent-prediction-research",
+    "audience": ["researcher", "doctor"],
+    "category": "Research practice",
+    "title": "Make prediction research assessable",
+    "summary": "Use transparent reporting to make a study's purpose, population, methods, and limits visible.",
+    "body": [
+      "TRIPOD+AI covers reporting of prediction studies using regression or machine learning. It asks authors to explain the data, outcome, predictors, methods, performance, and intended context of use.",
+      "Its checklist also addresses subgroup performance, open science, and patient involvement. It is a reporting guideline, rather than a guarantee of study quality or a prescribed development method. Complete reporting allows readers to assess whether the evidence answers their question."
+    ],
+    "source": {
+      "label": "Collins et al. · TRIPOD+AI statement, BMJ (2024)",
+      "url": "https://www.bmj.com/content/385/bmj-2023-078378"
+    },
+    "reading_minutes": 4,
+    "tags": ["study design", "reporting", "evaluation"]
+  },
+  {
+    "id": "leakage-and-evaluation",
+    "audience": ["researcher"],
+    "category": "Research practice",
+    "title": "Recognise data leakage before trusting a score",
+    "summary": "Examine whether the evaluation reflects information that would be available in real use.",
+    "body": [
+      "Data leakage can make an evaluation look stronger than it is. Kapoor and Narayanan describe how methodological errors in machine learning research can produce overly optimistic conclusions and undermine reproducibility.",
+      "Their paper provides a taxonomy of leakage and proposes structured information sheets for documenting scientific claims. Research takeaway: inspect the data pathway and evaluation design, as well as the reported score, when assessing a prediction study."
+    ],
+    "source": {
+      "label": "Kapoor and Narayanan · Leakage and the Reproducibility Crisis in ML-based Science",
+      "url": "https://arxiv.org/abs/2207.07048"
+    },
+    "reading_minutes": 4,
+    "tags": ["data leakage", "independent evaluation", "reproducibility"]
+  },
+  {
+    "id": "calibration-and-probabilities",
+    "audience": ["researcher", "doctor"],
+    "category": "Evidence interpretation",
+    "title": "A probability needs calibration evidence",
+    "summary": "Understand why separating outcome groups and estimating reliable probabilities are different tasks.",
+    "body": [
+      "Discrimination describes how well predictions separate people with and without an outcome. Calibration describes agreement between predicted risks and observed outcomes. Strong discrimination can coexist with probabilities that are systematically too high or too low.",
+      "Van Calster and colleagues explain why calibration requires explicit evaluation and why population or measurement differences can affect it. A probability should be interpreted alongside the setting and evidence supporting its use."
+    ],
+    "source": {
+      "label": "Van Calster et al. · Calibration: the Achilles heel of predictive analytics",
+      "url": "https://link.springer.com/article/10.1186/s12916-019-1466-7"
+    },
+    "reading_minutes": 4,
+    "tags": ["calibration", "discrimination", "uncertainty"]
+  },
+  {
+    "id": "diagnostic-clinical-context",
+    "audience": ["doctor"],
+    "category": "Clinical workflow",
+    "title": "Keep diagnostic evidence in its clinical context",
+    "summary": "Review the relationship between history, examination, imaging, and pathological confirmation.",
+    "body": [
+      "NCI describes diagnostic assessment as a process informed by symptoms, medical history, examination, and appropriate investigations. Imaging evaluates areas of concern; biopsy provides cells or tissue for pathological assessment.",
+      "A pathology report can describe origin, grade, invasion, and further biomarker findings. This educational workspace preserves that distinction: entered measurements are information for review and do not themselves establish a diagnosis or a treatment plan."
+    ],
+    "source": {
+      "label": "National Cancer Institute · How Breast Cancer Is Diagnosed",
+      "url": "https://www.cancer.gov/types/breast/diagnosis"
+    },
+    "reading_minutes": 3,
+    "tags": ["clinical context", "diagnosis", "pathology"]
+  },
+  {
+    "id": "clinical-research-evidence",
+    "audience": ["doctor", "researcher"],
+    "category": "Evidence interpretation",
+    "title": "Read clinical trial evidence with its design",
+    "summary": "Connect a study's eligibility, phase, comparator, and allocation method to the question it can answer.",
+    "body": [
+      "Clinical trials use eligibility criteria and defined phases to investigate medical approaches. Early treatment trials study safety and activity; later trials can compare an approach with standard care and monitor longer-term effects.",
+      "Random allocation helps limit bias when comparing groups. NCI's guide explains how these design features work. When reading a study, consider who was included and which outcome was tested before applying its findings to another setting."
+    ],
+    "source": {
+      "label": "National Cancer Institute · How Do Clinical Trials Work?",
+      "url": "https://www.cancer.gov/research/participate/clinical-trials/how-trials-work"
+    },
+    "reading_minutes": 3,
+    "tags": ["clinical trials", "evidence", "study populations"]
+  }
+]

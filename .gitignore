@@ -1,0 +1,17 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+node_modules/
+dist/
+.env
+.env.local
+*.log
+backend/data/
+.test-artifacts/
+.cache/
+coverage/
+.DS_Store
+Thumbs.db
