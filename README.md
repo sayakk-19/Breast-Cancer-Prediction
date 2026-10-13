@@ -1,8 +1,93 @@
 # Breast Cancer Prediction
 
-A local web application built with **React**, **FastAPI**, and **Streamlit**. Breast Cancer Prediction combines a role-based educational library, account access, and a structured measurement workspace. React is the primary interface; Streamlit is a Python companion that uses the same API and permissions.
+A breast cancer classification and education platform built with **React**, **FastAPI**, and **Streamlit**, with an **LRMeta Cross-Validation Stacking ensemble** research workflow combining traditional classifiers, an ANN, LightGBM, and CatBoost.
 
-**No machine learning model, training code, model artifacts, or dataset is included.** The prediction endpoint intentionally returns an unavailable response until you integrate your own implementation. The app never invents a diagnosis or confidence score.
+React is the main web interface. Streamlit provides a Python companion, and both use the same FastAPI permissions and measurement contract.
+
+## Reported validation performance
+
+| Stage | Author-reported validation accuracy |
+| --- | ---: |
+| Before stacking | **97%** |
+| After LRMeta cross-validation stacking | **99%** |
+| Reported improvement | **2 percentage points** |
+
+These figures refer to validation accuracy, as confirmed by the project author, and represent a 2-percentage-point improvement after stacking. The notebook defines separate validation and test evaluations; this saved copy does not retain executed metric outputs.
+
+## LRMeta ensemble architecture
+
+Research reference: `Breast_Cancer_Prediction_Project_Final_Evaluated_ANN_LightGBM_CatBoost.ipynb`, supplied separately. This version contains the LRMeta stacking implementation, standalone model comparisons, an ANN baseline, and exploratory clustering.
+
+### Base learners
+
+The stacking model contains nine base estimators:
+
+| Base learner | Configuration in the notebook |
+| --- | --- |
+| Logistic Regression | `max_iter=2000`, seed 42. |
+| Random Forest | 250 trees, balanced class weights, seed 42. |
+| Support Vector Classifier | RBF kernel, probability output enabled, balanced class weights, seed 42. |
+| K-Nearest Neighbors | 7 neighbors. |
+| Gradient Boosting | 120 estimators, seed 42. |
+| AdaBoost | 120 estimators, seed 42. |
+| ANN | Dense 64 ReLU → Dropout 0.25 → Dense 32 ReLU → Dropout 0.15 → Dense 1 sigmoid; hidden dense layers use L2 at `1e-4`. Trains for 30 epochs with batch size 32 and an internal validation fraction of 0.1. |
+| LightGBM | 200 estimators, learning rate 0.05, seed 42. |
+| CatBoost | 200 iterations, learning rate 0.05, depth 6, seed 42. |
+
+### Logistic Regression meta-learner
+
+`StackingClassifier` combines the base estimators using a Logistic Regression final estimator with `max_iter=2000`, balanced class weights, and seed 42.
+
+| Stacking setting | Value |
+| --- | --- |
+| Internal cross-validation | `cv=5` |
+| Base prediction method | `stack_method="predict_proba"` |
+| Original-feature passthrough | `passthrough=False` |
+| Parallel jobs | `n_jobs=1` |
+
+Five-fold cross-validation generates out-of-fold base predictions for fitting the meta-learner. During inference, the fitted base estimators produce predictions in the same order, and the fitted Logistic Regression meta-learner combines them. The configured meta-learner receives the base prediction features without the original 30 measurements. See the [scikit-learn stacking documentation](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.StackingClassifier.html) for the underlying training and prediction behavior.
+
+~~~text
+Cell measurements
+  → feature alignment and fitted scaling
+  → nine fitted base learners
+  → base prediction features
+  → Logistic Regression meta-learner
+  → malignant probability and predicted class
+~~~
+
+### Data preparation and evaluation
+
+| Stage | Notebook implementation |
+| --- | --- |
+| Dataset input | Loads `breast_cancer_data.csv`; drops `id` and `Unnamed: 32`; inspects missing values and duplicate rows. |
+| Target encoding | `B = 0` for benign and `M = 1` for malignant; `diagnosis` is excluded from predictors. |
+| Data split | Two stratified splits produce approximately 64% training, 16% validation, and 20% test data, with seed 42. |
+| Preprocessing | Fits `StandardScaler` on the outer training partition and transforms validation/test inputs with that fitted scaler. |
+| Original ANN baseline | Dense 16 ReLU → Dense 8 ReLU → Dense 1 sigmoid; Adam at 0.001, binary cross-entropy, up to 80 epochs, batch size 32. |
+| Baseline early stopping | Monitors validation loss with patience 10 and restores the best validation weights. |
+| Standalone comparison | Evaluates Logistic Regression, Random Forest, AdaBoost, Gradient Boosting, SVM, ANN, LightGBM, and CatBoost on validation data. |
+| Stacking training | Fits the nine-base LRMeta ensemble on the training partition using internal five-fold cross-validation. |
+| Validation evaluation | Accuracy, precision, recall, F1, ROC-AUC, and a classification report. |
+| Final test evaluation | Baseline ANN and LRMeta metrics, classification reports, and confusion matrices; standalone estimators' test metric table. |
+| Positive class and threshold | Malignant is class 1; the test classification rule uses malignant probability `>= 0.5`. |
+| Exploratory analysis | K-Means with two clusters, silhouette/ARI/NMI metrics, and a two-component PCA visualization. |
+
+The original Dense 16/8 ANN baseline and the Dense 64/32 ANN used as a stacking base learner are separate implementations.
+
+For strict internal cross-validation isolation, fitted preprocessing should be learned inside each fold. The current notebook fits scaling once on the outer training partition before internal stacking cross-validation; its outer validation and test partitions are excluded from that scaler fit.
+
+### Export contract
+
+The final notebook cell contains export commands for:
+
+- `bcp_model.keras` — original ANN baseline.
+- `lr_meta_stacking_model.joblib` — fitted LRMeta ensemble.
+- `standalone_ensemble_models.joblib` — fitted standalone comparison estimators.
+- `scaler.pkl` — fitted preprocessing scaler.
+
+When packaging inference, preserve the exact training feature names/order, class mapping, threshold, dependency versions, and the custom `KerasANNClassifier` definition alongside the fitted ensemble. The final export cell does not separately persist feature-order metadata.
+
 
 ## Included workflows
 
@@ -27,8 +112,8 @@ Measurement validation confirms input structure and numeric constraints. It does
 | Student | Public/patient and student resources | Available for practice | Unavailable |
 | Researcher, awaiting approval | Public and patient resources | Unavailable | Unavailable |
 | Doctor, awaiting approval | Public and patient resources | Unavailable | Unavailable |
-| Approved researcher | Public/patient and research resources | Available | Available; currently HTTP 503 |
-| Approved doctor | Public/patient and professional resources | Available | Available; currently HTTP 503 |
+| Approved researcher | Public/patient and research resources | Available | Role-authorized assessment workflow |
+| Approved doctor | Public/patient and professional resources | Available | Role-authorized assessment workflow |
 
 Role selection at signup does not grant professional access. A trusted local administrator must approve doctor and researcher accounts. Permission checks run in FastAPI as well as in the interfaces.
 
@@ -124,7 +209,7 @@ All routes use the /api/v1 prefix.
 
 | Method and path | Access | Behavior |
 | --- | --- | --- |
-| GET /health | Public | Service status and prediction_available: false. |
+| GET /health | Public | Service status and inference readiness. |
 | GET /features | Public | Ordered feature names, groups, labels, and disclaimer. |
 | GET /library | Public or signed in | Resources filtered by the authenticated account's access. |
 | POST /auth/register | Public | Register an account; professional roles begin pending. |
@@ -132,7 +217,7 @@ All routes use the /api/v1 prefix.
 | POST /auth/logout | Supplied session cookie/token | Revoke the current session and clear the cookie. |
 | GET /auth/me | Signed in | Current account, role, and approval status. |
 | POST /validate | Approved student, researcher, or doctor | Validate exactly 30 named numeric measurements. |
-| POST /predict | Approved researcher or doctor | Validate input and return intentional HTTP 503. |
+| POST /predict | Approved researcher or doctor | Role-protected inference entry point; binding details are below. |
 
 Protected API clients send an Authorization header with Bearer followed by the access token. React sends its session cookie automatically.
 
@@ -145,22 +230,11 @@ radius, texture, perimeter, area, smoothness,
 compactness, concavity, concave_points, symmetry, fractal_dimension
 ~~~
 
-backend/app/features.py is the shared source for names, order, labels, groups, and descriptions. React reads /features; Streamlit imports the same metadata module. If your eventual implementation needs a different input schema, update that contract, validation, synthetic examples, and tests together.
+backend/app/features.py is the shared source for names, order, labels, groups, and descriptions. React reads /features; Streamlit imports the same metadata module. Align the LRMeta inference input with the ensemble's saved feature order. If its input schema differs, update metadata, validation, examples, and tests together.
 
 Successful validation returns status: valid, the submitted sample_id and features, feature_count: 30, and feature_order containing the 30 ordered names.
 
-Authorized prediction requests return **HTTP 503**:
-
-~~~json
-{
-  "detail": {
-    "code": "MODEL_NOT_CONFIGURED",
-    "message": "Prediction is unavailable. Connect your model to enable results."
-  }
-}
-~~~
-
-Unauthenticated requests receive HTTP 401, restricted accounts receive HTTP 403, and invalid inputs receive HTTP 422. The interfaces display these states and never turn them into example predictions.
+Unauthenticated requests receive HTTP 401, restricted accounts receive HTTP 403, and invalid inputs receive HTTP 422. The interfaces display structured feedback for authentication, permissions, and input errors.
 
 A PowerShell API session with a synthetic validation payload:
 
@@ -194,13 +268,38 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/auth/logout -He
 
 Replace the example password before using the commands.
 
-## Integrate predictions later
+## LRMeta inference integration
 
-The integration point is the predict route in backend/app/main.py. Keep its authentication, professional approval, and measurement validation. Replace the intentional unavailable response with your implementation when ready. Use FEATURE_ORDER to assemble inputs in the order your implementation expects.
+The inference adapter belongs in `backend/app/main.py`. Preserve the existing authentication, professional approval, and `MeasurementRequest` checks. For the reviewed notebook, the adapter needs the fitted `lr_meta_stacking_model` and scaler; the original baseline ANN is a separate comparison model.
 
-The React client's future successful response contract has status: completed, prediction: benign or malignant, probability: a number or null, and sample_id: a string or null. The current backend never returns that result. Define the meaning and calibration of any probability before displaying it. Streamlit displays a real successful API response as JSON; update that presentation when the response contract is finalized.
+A deployable stacking bundle needs the fitted preprocessing, fitted base estimators, fitted meta-estimator, expected feature names/order, class mapping, decision threshold, and compatible dependency versions. Preserve the training-time base-learner order and any configuration that passes original features to the meta-learner.
 
-Update the predict route's response model and HTTP status declaration for successful results, along with its unavailable behavior. Update the health response and its schema so prediction_available becomes true only when the prediction service is actually ready. Current HealthResponse deliberately fixes this flag to false. Add checks for preprocessing, feature order, response meaning, and error handling when integrating your implementation.
+The inference path is:
+
+~~~text
+React or Streamlit measurements
+  → FastAPI authentication, role checks, and validation
+  → feature alignment and fitted preprocessing
+  → fitted base-learner predictions
+  → fitted meta-learner input and prediction
+  → class/probability mapping
+  → structured API response
+~~~
+
+The reviewed notebook encodes malignant as class 1. Confirm the deployed ensemble's saved class metadata before serving its probability output. Define `probability` consistently in the API and interface—for example, the estimated probability of malignancy—and select that class's probability from the ensemble output. Use `null` if the deployed estimator does not provide the agreed probability.
+
+The React client expects:
+
+| Field | Successful response |
+| --- | --- |
+| `status` | `"completed"` |
+| `prediction` | `"benign"` or `"malignant"` |
+| `probability` | A finite number from 0 to 1, or `null` |
+| `sample_id` | The submitted reference, or `null` |
+
+**API binding status:** the web application's `/predict` route currently returns HTTP 503 with `MODEL_NOT_CONFIGURED`. Connecting the research implementation requires replacing that handler, adding the successful response schema/status, and updating health readiness to reflect a loaded inference bundle. Streamlit already accepts a successful response as JSON; its result presentation can be aligned with the final contract.
+
+Verify parity between direct ensemble inference and API inference using the same cases. Check feature order, preprocessing, base-prediction column order, class mapping, decision threshold, loading failures, response serialization, and role restrictions. Keep ensemble evaluation separate from web application tests, and publish only results recorded by the evaluated implementation.
 
 ## Project layout
 
@@ -249,7 +348,7 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ~~~
 
-Streamlit tests mock HTTP calls to check public/patient/pending restrictions, student validation, authorized unavailable predictions, import handling, export/reset, revoked approval, expired sessions during requests, navigation, and local sign-out while the API is offline. They do not include or invoke a model. These commands require the runtime and test dependencies to be installed first.
+Streamlit tests mock HTTP calls to check public/patient/pending restrictions, student validation, authorized unavailable predictions, import handling, export/reset, revoked approval, expired sessions during requests, navigation, and local sign-out while the API is offline. These commands require the runtime and test dependencies to be installed first.
 
 ## Local data and deployment
 
@@ -257,5 +356,5 @@ The API stores account records and session hashes in SQLite. Passwords are salte
 
 Measurement submissions are processed in memory and are not persisted by this application. Streamlit clears case data on sign-out, detected session expiry, a change of API address, or a change of account/role that removes access. Protected tools are hidden while access cannot be verified, and local sign-out remains available during an API outage. Cases otherwise remain in interface session memory until cleared or the session ends. An explicit JSON download writes a file only where you choose to save it.
 
-This scaffold runs on local loopback addresses. Before making it available publicly, configure HTTPS, secure cookies, trusted frontend origins, production process supervision, account administration, and the requirements of your intended clinical or research environment. No medical deployment or performance claim is made by this starter.
+The application runs on local loopback addresses. Before making it available publicly, configure HTTPS, secure cookies, trusted frontend origins, production process supervision, account administration, and the requirements of your intended clinical or research environment. Model performance should be reported from the evaluated research implementation; clinical use requires validation appropriate to the intended setting.
 
