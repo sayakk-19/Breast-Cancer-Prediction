@@ -4,19 +4,13 @@ A breast cancer classification and education platform built with **React**, **Fa
 
 React is the main web interface. Streamlit provides a Python companion, and both use the same FastAPI permissions and measurement contract.
 
-## Reported validation performance
+## Saved ensemble metrics
 
-| Stage | Author-reported validation accuracy |
-| --- | ---: |
-| Before stacking | **97%** |
-| After LRMeta cross-validation stacking | **99%** |
-| Reported improvement | **2 percentage points** |
+The supplied export records 97.80% validation accuracy and 99.12% test accuracy. These figures are from separate dataset partitions. They are distinct from the probability calculated for an individual specimen. The web application uses the simplified notebook's five-file export described in the inference section below.
 
-These figures refer to validation accuracy, as confirmed by the project author, and represent a 2-percentage-point improvement after stacking. The notebook defines separate validation and test evaluations; this saved copy does not retain executed metric outputs.
+## Earlier research notebook
 
-## LRMeta ensemble architecture
-
-Research reference: `Breast_Cancer_Prediction_Project_Final_Evaluated_ANN_LightGBM_CatBoost.ipynb`, supplied separately. This version contains the LRMeta stacking implementation, standalone model comparisons, an ANN baseline, and exploratory clustering.
+The following architecture and training settings describe the earlier `Breast_Cancer_Prediction_Project_Final_Evaluated_ANN_LightGBM_CatBoost.ipynb` reference.
 
 ### Base learners
 
@@ -91,10 +85,14 @@ When packaging inference, preserve the exact training feature names/order, class
 
 ## Included workflows
 
-- A responsive React interface with patient, student, researcher, and doctor paths.
-- Curated educational summaries with links to their primary sources.
+Open **Prediction calculator** in the main navigation or visit `/#prediction`. Visitors can enter all 30 measurements and request a specimen estimate without an account.
+
+- A responsive React interface with a forest-green and ivory landing page, four role paths, and role-specific signed-in workspaces.
+- Curated educational summaries with links to their primary sources. Three public articles are bundled with the frontend so basic reading works while the backend is unavailable; protected resources still come from the authenticated API.
+- Dedicated account dialogs with password visibility, password confirmation at registration, and professional approval guidance.
+- A site footer with useful resources, privacy information, and configurable social icons. Social icons remain inactive until profile URLs are supplied.
 - Registration, login, logout, session expiry, and server-enforced permissions.
-- Local account storage in SQLite with salted password hashes and opaque sessions.
+- PostgreSQL account/session storage through Neon, with SQLite retained for local development. Passwords are salted and hashed; sessions use opaque tokens.
 - Administrator approval for doctor and researcher accounts.
 - A 30-field measurement form grouped into mean, standard error, and worst measurements.
 - Input validation, clearly labeled synthetic form examples, JSON import/export, and case reset.
@@ -104,6 +102,8 @@ When packaging inference, preserve the exact training feature names/order, class
 Measurement validation confirms input structure and numeric constraints. It does not establish clinical plausibility or provide a diagnosis. Patient-facing content is educational.
 
 ## Access rules
+
+The table describes the signed-in assessment workspace. The separate public calculator is open to every visitor.
 
 | Account | Educational library | Measurement entry and validation | Prediction request |
 | --- | --- | --- | --- |
@@ -119,16 +119,17 @@ Role selection at signup does not grant professional access. A trusted local adm
 
 ## Start on Windows
 
-Use PowerShell from the project directory. Install Python 3.11 or newer and a Node.js LTS release that supports the frontend dependencies.
+Use PowerShell from the project directory. Install Python 3.11 or newer (use Python 3.12 for the supplied ensemble) and a Node.js LTS release that supports the frontend dependencies.
 
 ~~~powershell
-Set-Location C:\Users\Sayak\Documents\ChatGPT\Breast_Cancer_Prediction
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --cache-dir .cache/pip -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install --cache-dir .cache/pip -r requirements-model.txt
 npm --prefix frontend install
 ~~~
 
 These commands use the virtual environment's Python directly, so PowerShell script activation is optional.
+
+If you already created `.venv`, keep it and skip the creation command. After updating dependencies, follow the PostgreSQL setup below before starting the API with `DATABASE_URL` set.
 
 Start FastAPI in the first terminal:
 
@@ -145,7 +146,7 @@ npm --prefix frontend run dev
 Start Streamlit in a third terminal:
 
 ~~~powershell
-.\.venv\Scripts\python.exe -m streamlit run streamlit_app/app.py --server.address 127.0.0.1 --browser.gatherUsageStats false --theme.base light --theme.primaryColor "#a74d6d"
+.\.venv\Scripts\python.exe -m streamlit run streamlit_app/app.py --server.address 127.0.0.1 --browser.gatherUsageStats false --theme.base light --theme.primaryColor "#173f35"
 ~~~
 
 Open:
@@ -164,7 +165,9 @@ Set-Location streamlit_app
 ..\.venv\Scripts\python.exe -m streamlit run app.py
 ~~~
 
-The app applies its rose styling when launched from the project root as well.
+The app applies its forest-green and ivory styling when launched from the project root as well.
+
+The public frontend is [cellscope-nu.vercel.app](https://cellscope-nu.vercel.app/). Local source changes become visible there only after a new frontend deployment. Account registration, sign-in, and protected tools require a reachable FastAPI backend; the public reading collection works independently. The backend has not yet been deployed.
 
 ## Accounts and professional approval
 
@@ -186,13 +189,74 @@ Refresh the interface afterward. There is no default administrator account or pu
 | --- | --- | --- |
 | API_PROXY_TARGET | http://127.0.0.1:8000 | Vite's development proxy target; set before starting React. |
 | VITE_API_BASE_URL | Empty / same origin | Direct API origin for a separately hosted React build. |
+| VITE_GITHUB_URL, VITE_LINKEDIN_URL, VITE_INSTAGRAM_URL, VITE_X_URL | Empty | Optional HTTPS social profile links. Blank values leave the footer icons inactive. Rebuild the frontend after changing these values. |
 | API_BASE_URL | http://127.0.0.1:8000 | Streamlit's API root; also editable in its sidebar. |
-| AUTH_DB_PATH | backend/data/auth.sqlite3 | Account/session database path; must remain inside this workspace. |
+| DATABASE_URL | Empty | PostgreSQL connection URL. Set this to use Neon; it is a backend-only secret. |
+| AUTH_DB_PATH | backend/data/auth.sqlite3 | SQLite fallback when DATABASE_URL is empty; must remain inside this workspace. |
 | SESSION_TTL_HOURS | 8 | Session lifetime, from 1 to 8760 hours. |
 | SESSION_COOKIE_SECURE | false | Set true when serving React and the API over HTTPS. |
 | CORS_ORIGINS | Localhost and 127.0.0.1 on ports 5173 and 5174 | Comma-separated explicit browser origins; an empty setting disables CORS. |
 
 Streamlit accepts localhost, 127.0.0.1, and ::1 API addresses. Use a root URL without an /api/v1 suffix.
+
+FastAPI and both administration commands load `.env` from the project root. Environment variables already set by the terminal or hosting platform take precedence.
+
+## PostgreSQL on Neon
+
+The backend supports PostgreSQL through Psycopg 3. The database is hosted by Neon; React and FastAPI can be hosted separately on Vercel. React and Streamlit communicate with FastAPI, and only FastAPI connects to the account database.
+
+### Create the hosted database
+
+1. Open the [Neon console](https://console.neon.tech/) and sign in.
+2. Create or select the project for this application. Use a region close to the eventual FastAPI deployment and stay on the Free plan if you want a free deployment.
+3. In the project's database controls, create a PostgreSQL database named `breast_cancer_insight`. Keep unrelated existing databases intact.
+4. Open **Connect**, select that database, and enable **Connection pooling**. Copy its PostgreSQL connection string privately. Keep the TLS parameters Neon supplies.
+
+See [Neon's database management documentation](https://neon.com/docs/manage/databases) and [connection guide](https://neon.com/docs/connect/connect-from-any-app). Creating a local SQL file does not provision a hosted database; that must be completed in the Neon account.
+
+### Configure and initialize
+
+Create a `.env` file in the project root using `.env.example` as the template. Set its `DATABASE_URL` to the real Neon connection string. Do not place this URL in frontend variables, commit it, or paste it into public messages.
+
+Illustrative format (replace all placeholders):
+
+~~~dotenv
+DATABASE_URL=postgresql://ROLE:PASSWORD@HOST-pooler.REGION.aws.neon.tech/breast_cancer_insight?sslmode=require&channel_binding=require
+~~~
+
+After installing the updated `requirements.txt` into your existing virtual environment, run from the project root:
+
+~~~powershell
+.\.venv\Scripts\python.exe -m backend.app.manage_database init
+.\.venv\Scripts\python.exe -m backend.app.manage_database check
+~~~
+
+`init` applies `backend/postgres.sql` to the existing database inside one transaction and checks the tables. Repeating it preserves existing records. `check` verifies connectivity and table access without creating tables. Neither command creates a Neon project or changes a database password.
+
+The `breast_cancer` schema contains:
+
+| Table | Stored information |
+| --- | --- |
+| `users` | Username, salted password hash, salt, role, approval status, and creation time. A unique lowercase-username index prevents case-only duplicates. |
+| `sessions` | SHA-256 session-token hash, account reference, and expiry. Foreign keys link sessions to their accounts. |
+
+Run FastAPI normally after initialization. Registration, sign-in, sign-out, session expiry, and `manage_users approve` all use the selected PostgreSQL database. The adapter uses parameterized SQL, short-lived connections, connection/query timeouts, and generic public database-error messages. App import does not connect to PostgreSQL or create tables.
+
+With `DATABASE_URL` empty, the original SQLite store remains available. Existing SQLite accounts are not automatically copied to PostgreSQL. This setup creates a separate account store and leaves SQLite files intact.
+
+### Hosting configuration
+
+Set `DATABASE_URL` in the **backend's** hosting environment. Set `SESSION_COOKIE_SECURE=true` for HTTPS and `CORS_ORIGINS` to the exact frontend origin. Prefer serving frontend and `/api/v1` routes on the same public origin to match the app's cookie configuration. Vercel routing/deployment must be configured separately; database support alone does not deploy the application.
+
+### Database checks
+
+These configuration checks do not need a live PostgreSQL database:
+
+~~~powershell
+.\.venv\Scripts\python.exe -B -m unittest discover -s backend/tests -p test_database.py -v
+~~~
+
+PostgreSQL integration checks in the same file run only when `TEST_DATABASE_URL` points to a dedicated test database. They cover role approval, case-insensitive accounts, password/session hashing, login failures, revocation, and expiry. Test changes roll back; use a separate test database because tests still acquire locks. Without that setting they are reported as skipped, not passed.
 
 For example, to change the local backend port:
 
@@ -217,6 +281,7 @@ All routes use the /api/v1 prefix.
 | POST /auth/logout | Supplied session cookie/token | Revoke the current session and clear the cookie. |
 | GET /auth/me | Signed in | Current account, role, and approval status. |
 | POST /validate | Approved student, researcher, or doctor | Validate exactly 30 named numeric measurements. |
+| POST /calculator/predict | Public | Calculate a malignancy estimate for 30 specimen measurements. |
 | POST /predict | Approved researcher or doctor | Role-protected inference entry point; binding details are below. |
 
 Protected API clients send an Authorization header with Bearer followed by the access token. React sends its session cookie automatically.
@@ -268,52 +333,32 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/auth/logout -He
 
 Replace the example password before using the commands.
 
-## LRMeta inference integration
+## Serving the exported ensemble
 
-The inference adapter belongs in `backend/app/main.py`. Preserve the existing authentication, professional approval, and `MeasurementRequest` checks. For the reviewed notebook, the adapter needs the fitted `lr_meta_stacking_model` and scaler; the original baseline ANN is a separate comparison model.
+With Python 3.12, install `requirements-model.txt` in the backend environment. Keep `metadata.json`, `base_models.joblib`, `ann_scaler.joblib`, `ann.keras`, and `lr_meta.joblib` together under `ml_model/model_exports/`. FastAPI loads these trusted project files once at startup. Restart the backend after installing the dependencies or replacing the export.
 
-A deployable stacking bundle needs the fitted preprocessing, fitted base estimators, fitted meta-estimator, expected feature names/order, class mapping, decision threshold, and compatible dependency versions. Preserve the training-time base-learner order and any configuration that passes original features to the meta-learner.
+The public React calculator sends the 30 measurements to `POST /api/v1/calculator/predict`. It works without a session cookie or bearer token. The existing professional workspace uses the authenticated `/api/v1/predict` route. Both use the same validator and fitted ensemble. Inputs are processed in memory.
 
-The inference path is:
+The adapter matches API field names to the saved column names and applies the preprocessing already fitted for each model. It combines eight classifier probabilities and the scaled ANN output in the exported order. The Logistic Regression meta-model produces the malignant-class probability. The response includes the probability, predicted class, saved threshold, and optional case reference. The estimate applies to a measured specimen.
 
-~~~text
-React or Streamlit measurements
-  → FastAPI authentication, role checks, and validation
-  → feature alignment and fitted preprocessing
-  → fitted base-learner predictions
-  → fitted meta-learner input and prediction
-  → class/probability mapping
-  → structured API response
-~~~
-
-The reviewed notebook encodes malignant as class 1. Confirm the deployed ensemble's saved class metadata before serving its probability output. Define `probability` consistently in the API and interface—for example, the estimated probability of malignancy—and select that class's probability from the ensemble output. Use `null` if the deployed estimator does not provide the agreed probability.
-
-The React client expects:
-
-| Field | Successful response |
-| --- | --- |
-| `status` | `"completed"` |
-| `prediction` | `"benign"` or `"malignant"` |
-| `probability` | A finite number from 0 to 1, or `null` |
-| `sample_id` | The submitted reference, or `null` |
-
-**API binding status:** the web application's `/predict` route currently returns HTTP 503 with `MODEL_NOT_CONFIGURED`. Connecting the research implementation requires replacing that handler, adding the successful response schema/status, and updating health readiness to reflect a loaded inference bundle. Streamlit already accepts a successful response as JSON; its result presentation can be aligned with the final contract.
-
-Verify parity between direct ensemble inference and API inference using the same cases. Check feature order, preprocessing, base-prediction column order, class mapping, decision threshold, loading failures, response serialization, and role restrictions. Keep ensemble evaluation separate from web application tests, and publish only results recorded by the evaluated implementation.
+Check `GET /api/v1/health` for `prediction_available`. If the runtime or export cannot load, account and reading features remain available and the calculator displays a service message. For a hosted frontend, point `VITE_API_BASE_URL` at the deployed FastAPI server and include the frontend origin in `CORS_ORIGINS`.
 
 ## Project layout
 
 ~~~text
-Breast_Cancer_Prediction/
+Breast-Cancer-Prediction/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py               # API routes and access checks
 │   │   ├── auth.py               # Account/session persistence
+│   │   ├── database.py           # PostgreSQL adapter and storage selection
+│   │   ├── manage_database.py    # PostgreSQL initialization/check commands
 │   │   ├── manage_users.py       # Trusted local approval command
 │   │   ├── features.py           # Shared measurement metadata
 │   │   ├── schemas.py            # Request/response validation
 │   │   └── library.json          # Educational content and source links
 │   ├── data/                    # Runtime account database, ignored by Git
+│   ├── postgres.sql             # PostgreSQL account/session schema
 │   └── tests/
 ├── frontend/                    # React, TypeScript, and Vite
 │   ├── src/
@@ -352,7 +397,7 @@ Streamlit tests mock HTTP calls to check public/patient/pending restrictions, st
 
 ## Local data and deployment
 
-The API stores account records and session hashes in SQLite. Passwords are salted and hashed using PBKDF2; raw session tokens are not stored in the database. React uses an HTTP-only cookie, and Streamlit keeps its bearer token in session memory. Signing out revokes the active session.
+The API stores account records and session hashes in PostgreSQL when `DATABASE_URL` is set, or SQLite for local development otherwise. Passwords are salted and hashed using PBKDF2; raw session tokens are not stored in the database. React uses an HTTP-only cookie, and Streamlit keeps its bearer token in session memory. Signing out revokes the active session.
 
 Measurement submissions are processed in memory and are not persisted by this application. Streamlit clears case data on sign-out, detected session expiry, a change of API address, or a change of account/role that removes access. Protected tools are hidden while access cannot be verified, and local sign-out remains available during an API outage. Cases otherwise remain in interface session memory until cleared or the session ends. An explicit JSON download writes a file only where you choose to save it.
 

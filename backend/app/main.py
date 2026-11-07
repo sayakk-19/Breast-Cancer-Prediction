@@ -1,6 +1,8 @@
-"""Role-restricted education and measurement API, with prediction unconfigured."""
+"""Role-restricted education and measurement API, with saved ensemble inference."""
 
 import json
+import logging
+from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -11,16 +13,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .auth import (
-    AuthStore,
     InvalidCredentialsError,
     SESSION_COOKIE_NAME,
     UsernameTakenError,
-    configured_database_path,
     configured_secure_cookie,
-    configured_session_ttl,
 )
+from .database import AccountStore, DatabaseUnavailableError, create_auth_store, load_environment
 from .features import DISCLAIMER, FEATURE_DEFINITIONS, FEATURE_ORDER, GROUPS
+from .inference import EXPORT_DIRECTORY, ModelBundle
 from .schemas import (
+    PredictionResponse,
     CurrentUserResponse,
     FeaturesResponse,
     HealthResponse,
@@ -67,7 +69,7 @@ def configured_cors_origins() -> list[str]:
     return origins
 
 
-def auth_store(request: Request) -> AuthStore:
+def auth_store(request: Request) -> AccountStore:
     return request.app.state.auth_store
 
 
@@ -138,23 +140,34 @@ def prediction_user(user: UserResponse = Depends(measurement_user)) -> UserRespo
     return user
 
 
-def create_app(database_path: Path | None = None) -> FastAPI:
+def create_app(database_path: Path | None = None, *, model_directory: Path = EXPORT_DIRECTORY) -> FastAPI:
     """Build the app; an explicit database path supports isolated local tests."""
+    if database_path is None:
+        load_environment()
     origins = configured_cors_origins()
     secure_cookie = configured_secure_cookie()
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        try:
+            app.state.model_bundle = ModelBundle(model_directory)
+        except Exception as error:
+            # A missing runtime or damaged export must not take the rest of the app offline.
+            logging.getLogger(__name__).warning("Prediction bundle unavailable: %s", error)
+            app.state.model_bundle = None
+        yield
+
     application = FastAPI(
+        lifespan=lifespan,
         title="Breast Cancer Prediction API",
         version="0.1.0",
         description=(
             "Role-restricted educational resources and validated measurement intake. "
             "Local researcher and doctor accounts require administrator approval. "
-            "Prediction is unavailable until you integrate your own model."
+            "A public calculator estimates malignancy for a measured breast mass."
         ),
     )
-    application.state.auth_store = AuthStore(
-        database_path if database_path is not None else configured_database_path(),
-        configured_session_ttl(),
-    )
+    application.state.model_bundle = None
+    application.state.auth_store = create_auth_store(database_path)
     application.state.library = [
         ResourceResponse.model_validate(resource)
         for resource in json.loads(Path(__file__).with_name("library.json").read_text(encoding="utf-8-sig"))
@@ -179,9 +192,16 @@ def create_app(database_path: Path | None = None) -> FastAPI:
                 content={"detail": {"code": "ORIGIN_NOT_ALLOWED", "message": "This browser origin is not allowed."}},
             )
         response = await call_next(request)
-        if request.url.path.startswith("/api/v1/auth") or request.url.path == "/api/v1/library":
+        if request.url.path.startswith("/api/v1/auth") or request.url.path in {"/api/v1/library", "/api/v1/predict", "/api/v1/calculator/predict"}:
             response.headers["Cache-Control"] = "no-store"
         return response
+
+    @application.exception_handler(DatabaseUnavailableError)
+    async def database_unavailable(_request: Request, _error: DatabaseUnavailableError) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": {
+            "code": "DATABASE_UNAVAILABLE",
+            "message": "Account services are temporarily unavailable. Please try again later.",
+        }})
 
     @application.exception_handler(RequestValidationError)
     async def validation_error_response(_request: Request, error: RequestValidationError) -> JSONResponse:
@@ -194,7 +214,7 @@ def create_app(database_path: Path | None = None) -> FastAPI:
 
     @application.get("/api/v1/health", response_model=HealthResponse, tags=["Workspace"])
     async def health() -> HealthResponse:
-        return HealthResponse()
+        return HealthResponse(prediction_available=application.state.model_bundle is not None)
 
     @application.get("/api/v1/features", response_model=FeaturesResponse, tags=["Measurements"])
     async def features() -> FeaturesResponse:
@@ -211,7 +231,7 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         response_model=RegistrationResponse,
         tags=["Accounts"],
     )
-    def register(credentials: RegistrationRequest, store: AuthStore = Depends(auth_store)) -> RegistrationResponse:
+    def register(credentials: RegistrationRequest, store: AccountStore = Depends(auth_store)) -> RegistrationResponse:
         try:
             user = store.register(credentials.username, credentials.password, credentials.role)
         except UsernameTakenError as error:
@@ -226,7 +246,7 @@ def create_app(database_path: Path | None = None) -> FastAPI:
 
     @application.post("/api/v1/auth/login", response_model=LoginResponse, tags=["Accounts"])
     def login(
-        credentials: LoginRequest, response: Response, store: AuthStore = Depends(auth_store)
+        credentials: LoginRequest, response: Response, store: AccountStore = Depends(auth_store)
     ) -> LoginResponse:
         try:
             user, token = store.login(credentials.username, credentials.password)
@@ -250,7 +270,7 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         return CurrentUserResponse(user=user)
 
     @application.post("/api/v1/auth/logout", response_model=LogoutResponse, tags=["Accounts"])
-    def logout(request: Request, response: Response, store: AuthStore = Depends(auth_store)) -> LogoutResponse:
+    def logout(request: Request, response: Response, store: AccountStore = Depends(auth_store)) -> LogoutResponse:
         tokens = {bearer_token(request), request.cookies.get(SESSION_COOKIE_NAME)} - {None}
         for token in tokens:
             store.revoke(token)
@@ -284,23 +304,27 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         )
 
     @application.post(
-        "/api/v1/predict",
-        tags=["Prediction"],
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        response_model=PredictionUnavailableResponse,
-        summary="Prediction unavailable until integration",
-        description=(
-            "Approved researchers and doctors can submit validated measurements. "
-            "This endpoint then returns MODEL_NOT_CONFIGURED. No predictions or "
-            "probabilities are generated."
-        ),
+        "/api/v1/predict", response_model=PredictionResponse, tags=["Prediction"],
+        dependencies=[Depends(prediction_user)], responses={503: {"model": PredictionUnavailableResponse}},
     )
-    def predict(
-        _sample: MeasurementRequest, _user: UserResponse = Depends(prediction_user)
-    ) -> PredictionUnavailableResponse:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=PredictionUnavailableDetail().model_dump(),
+    @application.post(
+        "/api/v1/calculator/predict", response_model=PredictionResponse, tags=["Prediction"],
+        summary="Calculate a specimen score without signing in",
+        responses={503: {"model": PredictionUnavailableResponse}},
+    )
+    def predict(sample: MeasurementRequest, request: Request) -> PredictionResponse:
+        bundle = request.app.state.model_bundle
+        if bundle is None:
+            raise HTTPException(status_code=503, detail=PredictionUnavailableDetail().model_dump())
+        try:
+            prediction, probability = bundle.predict(sample.features)
+        except (ValueError, OverflowError, FloatingPointError) as error:
+            raise HTTPException(status_code=422, detail="Check the measurement values and units. The model could not score this input.") from error
+        except Exception as error:
+            logging.getLogger(__name__).exception("Prediction failed")
+            raise HTTPException(status_code=503, detail=PredictionUnavailableDetail().model_dump()) from error
+        return PredictionResponse(
+            sample_id=sample.sample_id, prediction=prediction, probability=probability, threshold=bundle.threshold
         )
 
     return application

@@ -352,12 +352,12 @@ def main() -> None:
         forget_account(st.session_state.pop("access_reset"))
     st.markdown("""
         <style>
-        .stApp { background: #fbf7f6; color: #302a2d; }
-        [data-testid="stSidebar"] { background: #f4ecec; }
+        .stApp { background: #f5f6f1; color: #223a32; }
+        [data-testid="stSidebar"] { background: #eaf0e7; }
         h1, h2, h3 { letter-spacing: -0.035em; }
-        [data-testid="stForm"] { background: #fffdfc; border: 1px solid #e6d9dc; border-radius: 16px; }
-        [data-testid="stMetric"] { background: #fffdfc; border: 1px solid #e6d9dc; padding: 16px; border-radius: 12px; }
-        .stButton button[kind="primary"], .stFormSubmitButton button[kind="primary"] { background: #a74d6d; border-color: #a74d6d; color: white; }
+        [data-testid="stForm"] { background: #ffffff; border: 1px solid #dce3da; border-radius: 12px; }
+        [data-testid="stMetric"] { background: #ffffff; border: 1px solid #dce3da; padding: 16px; border-radius: 12px; }
+        .stButton button[kind="primary"], .stFormSubmitButton button[kind="primary"] { background: #173f35; border-color: #173f35; color: white; }
         </style>
         """, unsafe_allow_html=True)
 
@@ -407,7 +407,6 @@ def main() -> None:
                 st.warning(connection_error)
         else:
             st.warning(connection_error or "The API is unavailable.")
-        st.caption("Prediction: available" if prediction_available else "Prediction: awaiting integration")
         st.divider()
         if st.session_state.get("auth_notice"):
             st.info(st.session_state.pop("auth_notice"))
@@ -419,7 +418,7 @@ def main() -> None:
         st.caption("Do not enter personal identifiers. Measurement data stays in session memory; accounts are stored by the local API.")
 
     st.caption("BREAST CANCER PREDICTION / WORKSPACE")
-    st.title("Clarity at every step.")
+    st.title("Breast health, with a clearer perspective.")
     st.markdown("A shared place for patients, students, researchers, and doctors to learn and prepare.")
     if page == "Overview":
         st.subheader(f"Welcome, {user['role']}" if user else "Choose the path that fits you")
@@ -433,8 +432,6 @@ def main() -> None:
             with column:
                 st.markdown(f"### {title}")
                 st.write(description)
-        if not prediction_available:
-            st.info("Prediction is unavailable. Connect your model to enable results.")
         st.caption(DISCLAIMER)
         st.button("Explore the learning library", key="explore_library", on_click=open_library)
     elif page == "Learning library":
@@ -452,9 +449,10 @@ def main() -> None:
         st.write("Create an account in the sidebar. Doctor and researcher accounts need administrator approval; selecting a role does not grant professional access.")
         st.code("python -m backend.app.manage_users approve <username>", language="powershell")
         st.caption("Run approval from the project directory with its virtual environment active. This local command is for the workspace administrator.")
-        st.write("The React interface and this companion share the same API and permissions. There is no model or training pipeline in this project.")
+        st.write("The React interface and this companion share the same API, account permissions, and measurement format.")
     st.divider()
     st.caption("Breast Cancer Prediction · A local development workspace. Educational content and measurement validation do not provide a diagnosis.")
+    st.link_button("Open the main website", "https://cellscope-nu.vercel.app/")
 
 
 if __name__ == "__main__":

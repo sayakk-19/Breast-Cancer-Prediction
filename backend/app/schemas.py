@@ -1,4 +1,4 @@
-"""Pydantic HTTP request/response schemas, with no ML implementation."""
+"""Pydantic HTTP request/response schemas, for the application."""
 
 from typing import Annotated, Any, Literal
 
@@ -91,7 +91,7 @@ class MeasurementRequest(StrictRequest):
 class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     service: Literal["Breast Cancer Prediction API"] = "Breast Cancer Prediction API"
-    prediction_available: Literal[False] = False
+    prediction_available: bool = False
 
 
 class FeatureGroupDefinition(BaseModel):
@@ -124,11 +124,17 @@ class ValidationResponse(BaseModel):
     feature_order: list[str]
 
 
+class PredictionResponse(BaseModel):
+    status: Literal["completed"] = "completed"
+    sample_id: str | None
+    prediction: Literal["benign", "malignant"]
+    probability: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
+    threshold: Annotated[float, Field(gt=0, lt=1, allow_inf_nan=False)]
+
+
 class PredictionUnavailableDetail(BaseModel):
     code: Literal["MODEL_NOT_CONFIGURED"] = "MODEL_NOT_CONFIGURED"
-    message: Literal[
-        "Prediction is unavailable. Connect your model to enable results."
-    ] = "Prediction is unavailable. Connect your model to enable results."
+    message: str = "The prediction service is temporarily unavailable. Please try again later."
 
 
 class PredictionUnavailableResponse(BaseModel):

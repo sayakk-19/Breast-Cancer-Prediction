@@ -1,4 +1,4 @@
-"""Shared input metadata. No trained model or dataset is included."""
+"""Shared input metadata for cell measurements."""
 
 from typing import Literal
 
@@ -52,7 +52,4 @@ FEATURE_DEFINITIONS = tuple(
     for name, label in BASE_FEATURES
 )
 
-DISCLAIMER = (
-    "For education and development use. This workspace does not provide a medical "
-    "diagnosis. Prediction is unavailable until a model is connected and evaluated."
-)
+DISCLAIMER = "Educational model estimate for a breast-mass specimen. Clinical interpretation requires a qualified professional."

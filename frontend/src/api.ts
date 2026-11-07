@@ -26,8 +26,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   const timeout = window.setTimeout(() => controller.abort(), 12000);
   try {
     const response = await fetch(`${base}/api/v1${path}`, {
-      ...options,
       credentials: 'include',
+      ...options,
       headers: { 'Content-Type': 'application/json', ...options.headers },
       signal: controller.signal,
     });
@@ -39,12 +39,13 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
         : detail?.message || 'The request could not be completed.';
       throw new ApiError(message, response.status, detail?.code);
     }
+    if (data === null) throw new ApiError('The service returned an unreadable response. Please try again later.', response.status);
     return data as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw new ApiError(controller.signal.aborted
       ? 'The server took too long to respond. Please try again.'
-      : 'We could not reach the API. Start the FastAPI server and try again.', 0);
+      : 'We could not reach the service. Please try again shortly.', 0);
   } finally {
     window.clearTimeout(timeout);
   }

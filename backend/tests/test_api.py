@@ -21,7 +21,7 @@ def application(monkeypatch, tmp_path):
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
     monkeypatch.delenv("SESSION_TTL_HOURS", raising=False)
     monkeypatch.delenv("SESSION_COOKIE_SECURE", raising=False)
-    return create_app(database_path=tmp_path / "auth.sqlite3")
+    return create_app(database_path=tmp_path / "auth.sqlite3", model_directory=tmp_path / "missing-export")
 
 
 @pytest.fixture
@@ -215,7 +215,7 @@ def test_approval_unlocks_professional_permissions_without_fake_prediction(clien
     assert response.json() == {
         "detail": {
             "code": "MODEL_NOT_CONFIGURED",
-            "message": "Prediction is unavailable. Connect your model to enable results.",
+            "message": "The prediction service is temporarily unavailable. Please try again later.",
         }
     }
     assert client.post("/api/v1/auth/approve", json={"username": "tester"}).status_code == 404
