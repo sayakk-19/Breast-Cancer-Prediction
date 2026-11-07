@@ -1,0 +1,74 @@
+[
+  {
+    "id": "understanding-breast-cancer",
+    "audience": [
+      "public",
+      "patient"
+    ],
+    "category": "The essentials",
+    "title": "Understanding breast cancer",
+    "summary": "A clear introduction to breast tissue, abnormal cell growth, and the meaning of invasive cancer.",
+    "body": [
+      "Breast cancer develops when abnormal cells in breast tissue grow without control. It often begins in the ducts that carry milk or the lobules that produce it. Breast cancer can also affect men.",
+      "Invasive cancer has grown into surrounding tissue and may spread elsewhere. The type of cancer and its extent help a care team understand a person's diagnosis. The WHO overview explains these ideas in more detail."
+    ],
+    "source": {
+      "label": "World Health Organization · Breast cancer",
+      "url": "https://www.who.int/news-room/fact-sheets/detail/breast-cancer"
+    },
+    "reading_minutes": 2,
+    "tags": [
+      "basics",
+      "anatomy",
+      "terminology"
+    ]
+  },
+  {
+    "id": "recognising-breast-changes",
+    "audience": [
+      "public",
+      "patient"
+    ],
+    "category": "Health awareness",
+    "title": "Breast changes worth discussing",
+    "summary": "Learn why a new change deserves clinical attention, even when it has a benign explanation.",
+    "body": [
+      "Breast changes have many possible causes. A new lump, a change in breast shape, unusual nipple discharge, or changes in the skin can be reasons for a conversation with a health professional. Most breast changes are not cancer.",
+      "NCI explains that a recent normal mammogram does not remove the need to discuss a new change. Symptoms alone cannot establish a diagnosis; a clinician considers the history, examination, and appropriate investigations."
+    ],
+    "source": {
+      "label": "National Cancer Institute · Breast Cancer Signs and Symptoms",
+      "url": "https://www.cancer.gov/types/breast/symptoms"
+    },
+    "reading_minutes": 2,
+    "tags": [
+      "breast changes",
+      "care conversations",
+      "awareness"
+    ]
+  },
+  {
+    "id": "screening-and-diagnosis",
+    "audience": [
+      "public",
+      "patient"
+    ],
+    "category": "Understanding care",
+    "title": "Screening and diagnosis serve different purposes",
+    "summary": "Understand what screening looks for and why an abnormal result needs further assessment.",
+    "body": [
+      "Screening looks for breast cancer in people who have no symptoms. A screening result can suggest that more investigation is needed; it does not by itself confirm cancer.",
+      "Screening has benefits and limitations, including false positive and false negative results. NCI's guide explains these terms and the role of mammography. Screening choices depend on individual circumstances and the guidance used by a person's care team."
+    ],
+    "source": {
+      "label": "National Cancer Institute · Screening for Breast Cancer",
+      "url": "https://www.cancer.gov/types/breast/screening"
+    },
+    "reading_minutes": 2,
+    "tags": [
+      "screening",
+      "mammography",
+      "test results"
+    ]
+  }
+]

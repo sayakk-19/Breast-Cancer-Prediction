@@ -1,0 +1,64 @@
+{
+  "feature_order": [
+    "radius_mean",
+    "texture_mean",
+    "perimeter_mean",
+    "area_mean",
+    "smoothness_mean",
+    "compactness_mean",
+    "concavity_mean",
+    "concave points_mean",
+    "symmetry_mean",
+    "fractal_dimension_mean",
+    "radius_se",
+    "texture_se",
+    "perimeter_se",
+    "area_se",
+    "smoothness_se",
+    "compactness_se",
+    "concavity_se",
+    "concave points_se",
+    "symmetry_se",
+    "fractal_dimension_se",
+    "radius_worst",
+    "texture_worst",
+    "perimeter_worst",
+    "area_worst",
+    "smoothness_worst",
+    "compactness_worst",
+    "concavity_worst",
+    "concave points_worst",
+    "symmetry_worst",
+    "fractal_dimension_worst"
+  ],
+  "model_order": [
+    "Logistic Regression",
+    "Random Forest",
+    "SVM",
+    "KNN",
+    "Gradient Boosting",
+    "AdaBoost",
+    "ANN",
+    "LightGBM",
+    "CatBoost"
+  ],
+  "class_mapping": {
+    "benign": 0,
+    "malignant": 1
+  },
+  "threshold": 0.5,
+  "validation_metrics": {
+    "Accuracy": 0.978021978021978,
+    "Precision": 0.9705882352941176,
+    "Recall": 0.9705882352941176,
+    "F1": 0.9705882352941176,
+    "ROC-AUC": 0.9943240454076367
+  },
+  "test_metrics": {
+    "Accuracy": 0.9912280701754386,
+    "Precision": 1.0,
+    "Recall": 0.9761904761904762,
+    "F1": 0.9879518072289156,
+    "ROC-AUC": 0.9957010582010581
+  }
+}

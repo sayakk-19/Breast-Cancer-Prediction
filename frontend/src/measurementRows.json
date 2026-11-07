@@ -1,0 +1,92 @@
+[
+  {
+    "key": "radius",
+    "label": "Radius",
+    "example": {
+      "mean": 17.99,
+      "se": 1.095,
+      "worst": 25.38
+    }
+  },
+  {
+    "key": "texture",
+    "label": "Texture",
+    "example": {
+      "mean": 10.38,
+      "se": 0.9053,
+      "worst": 17.33
+    }
+  },
+  {
+    "key": "perimeter",
+    "label": "Perimeter",
+    "example": {
+      "mean": 122.8,
+      "se": 8.589,
+      "worst": 184.6
+    }
+  },
+  {
+    "key": "area",
+    "label": "Area",
+    "example": {
+      "mean": 1001.0,
+      "se": 153.4,
+      "worst": 2019.0
+    }
+  },
+  {
+    "key": "smoothness",
+    "label": "Smoothness",
+    "example": {
+      "mean": 0.1184,
+      "se": 0.006399,
+      "worst": 0.1622
+    }
+  },
+  {
+    "key": "compactness",
+    "label": "Compactness",
+    "example": {
+      "mean": 0.2776,
+      "se": 0.04904,
+      "worst": 0.6656
+    }
+  },
+  {
+    "key": "concavity",
+    "label": "Concavity",
+    "example": {
+      "mean": 0.3001,
+      "se": 0.05373,
+      "worst": 0.7119
+    }
+  },
+  {
+    "key": "concave_points",
+    "label": "Concave points",
+    "example": {
+      "mean": 0.1471,
+      "se": 0.01587,
+      "worst": 0.2654
+    }
+  },
+  {
+    "key": "symmetry",
+    "label": "Symmetry",
+    "example": {
+      "mean": 0.2419,
+      "se": 0.03003,
+      "worst": 0.4601
+    }
+  },
+  {
+    "key": "fractal_dimension",
+    "label": "Fractal dimension",
+    "example": {
+      "mean": 0.07871,
+      "se": 0.006193,
+      "worst": 0.1189
+    }
+  }
+]
