@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileUp, Sparkles } from 'lucide-react';
+import { FileUp } from 'lucide-react';
 
 type Summary = { rows: number; warnings: string[]; models: { name: string; accuracy: number | null; auc: number | null }[] };
 const postFile = async (path: string, file: File): Promise<Summary> => {
