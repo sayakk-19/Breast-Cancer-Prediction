@@ -6,10 +6,12 @@ import { ApiError, canAssess, canPredict, downloadJson, parseImport, request, va
 import type { FeatureSchema, Health, Payload, Prediction, Resource, Role, User, Validation } from './api';
 import SiteFooter from './SiteFooter';
 import PredictionCalculator from './PredictionCalculator';
+import { DatasetUploadPage, ShapExplorerPage } from './ModelTools';
 import AuthFields from './AuthFields';
+import { AboutPage, ModelPage, useAboutAlert } from './AboutPages';
 import publicResources from './publicResources.json';
 
-type Page = 'overview' | 'prediction' | 'library' | 'assessment' | 'history' | 'about';
+type Page = 'overview' | 'prediction' | 'library' | 'assessment' | 'history' | 'about' | 'model' | 'dataset' | 'shap';
 type Notice = { kind: 'success' | 'error' | 'info'; text: string };
 type SessionEntry = { id: string; time: string; payload: Payload; status: 'Validated' | 'Awaiting model' | 'Completed'; prediction?: Prediction };
 const roles: { id: Role; label: string; description: string; icon: LucideIcon; tag: string; color: string }[] = [
@@ -18,7 +20,7 @@ const roles: { id: Role; label: string; description: string; icon: LucideIcon; t
   { id: 'researcher', label: 'Researchers', description: 'Explore study design, data quality, and a structured workspace for future assessment tools.', icon: FlaskConical, tag: 'Explore & investigate', color: 'sage' },
   { id: 'doctor', label: 'Doctors', description: 'Review clinical resources and prepare measurement inputs in a focused professional workspace.', icon: Stethoscope, tag: 'Review & assess', color: 'sand' },
 ];
-const pageNames: Record<Page, string> = { overview: 'Overview', prediction: 'Prediction calculator', library: 'Learning library', assessment: 'Assessment room', history: 'Session history', about: 'About the project' };
+const pageNames: Record<Page, string> = { overview: 'Overview', prediction: 'Prediction calculator', library: 'Learning library', assessment: 'Assessment room', history: 'Session history', about: 'About the project', model: 'About the model', dataset: 'Dataset upload', shap: 'SHAP Explorer' };
 function pageFromHash(): Page | undefined {
   const hash = window.location.hash.slice(1);
   return Object.hasOwn(pageNames, hash) ? hash as Page : undefined;
@@ -82,6 +84,7 @@ function ResourceCard({ resource, onOpen, saved, onSave }: { resource: Resource;
 }
 
 export default function App() {
+  useAboutAlert();
   const [page, setPage] = useState<Page>(() => pageFromHash() ?? 'overview');
   const [mobileNav, setMobileNav] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -247,7 +250,7 @@ export default function App() {
     try {
       if (authMode === 'register') { await request('/auth/register', { method: 'POST', body: JSON.stringify({ ...credentials, role: authRole }) }); registered = true; }
       const result = await request<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
-      setUser(result.user); setHistory([]); setSaved([]); resetAssessment(); setAuthMode(null); navigate('overview');
+      setUser(result.user); setHistory([]); setSaved([]); resetAssessment(); setAuthMode(null); navigate(page === 'model' ? 'model' : 'overview');
       notify('success', result.user.approved ? `Welcome, ${result.user.username}. Your workspace is ready.` : 'Account created. Professional tools will become available after account approval.');
     } catch (error) {
       if (registered) { setAuthMode('login'); setAuthError('Your account was created. Please sign in to continue. ' + (error as Error).message); }
@@ -338,13 +341,13 @@ export default function App() {
         })}
       </nav>
       <div className="sidebar-note"><span className="small-flower"><Leaf size={21} /></span><h4>Start with a good source.</h4><p>Every article links to the original medical or research publication.</p><button className="text-button" onClick={() => navigate('library')}>Explore the library <ArrowRight size={14} /></button></div>
-      <div className="sidebar-bottom"><button className={`nav-item ${page === 'about' ? 'active' : ''}`} onClick={() => navigate('about')}><CircleHelp size={18} /> About the project</button><div className="sidebar-caption"><ShieldCheck size={14} /> Education & research workspace</div><small>Breast health. In context.</small></div>
+      <div className="sidebar-bottom">{user?.approved && (user.role === 'student' || user.role === 'researcher') && <button className={`nav-item ${page === 'model' ? 'active' : ''}`} onClick={() => navigate('model')}><FlaskConical size={18} /> About the model</button>}<button className={`nav-item ${page === 'about' ? 'active' : ''}`} onClick={() => navigate('about')}><CircleHelp size={18} /> About the project</button><div className="sidebar-caption"><ShieldCheck size={14} /> Education & research workspace</div><small>Breast health. In context.</small></div>
     </aside>
 
     <div className="main-shell" inert={mobileNav || undefined}>
       <header className="topbar">
         {!user && <button className="brand header-brand" onClick={() => navigate('overview')} aria-label="Breast Cancer Prediction home"><span className="brand-mark"><HeartHandshake size={27} strokeWidth={1.6} /></span><span>Breast Cancer<small>PREDICTION & EDUCATION</small></span></button>}
-        {!user && <nav className="public-navigation" aria-label="Main navigation">{(['overview', 'prediction', 'library', 'about'] as const).map(item => item === 'prediction' ? <a key={item} href="#prediction" aria-current={page === item ? 'page' : undefined}>Prediction calculator</a> : <button key={item} onClick={() => navigate(item)} aria-current={page === item ? 'page' : undefined}>{item === 'overview' ? 'Home' : item === 'library' ? 'Learning library' : 'About'}</button>)}</nav>}
+        <nav className="public-navigation" aria-label="Main navigation">{(['overview', 'prediction', 'dataset', 'shap', 'library', 'about'] as const).map(item => item === 'prediction' ? <a key={item} href="#prediction" aria-current={page === item ? 'page' : undefined}>Prediction calculator</a> : <button key={item} onClick={() => (item === 'dataset' || item === 'shap') && !user ? openAuth('login', 'student') : navigate(item)} aria-current={page === item ? 'page' : undefined}>{item === 'overview' ? 'Home' : item === 'library' ? 'Learning library' : item === 'dataset' ? 'Dataset upload' : item === 'shap' ? 'SHAP Explorer' : 'About'}</button>)}</nav>
         <div className="breadcrumb"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Open navigation" aria-expanded={mobileNav} aria-controls="workspace-navigation"><Menu size={22} /></button><span>Workspace</span><ChevronRight size={13} /><strong>{pageNames[page]}</strong></div>
         <div className="topbar-actions"><button className={`connection-badge ${health ? 'connected' : 'offline'}`} onClick={() => void connect()} title="Refresh API connection" disabled={connecting}><span className={connecting ? 'status-dot checking' : 'status-dot'} />{connecting ? 'Connecting' : health ? 'API connected' : 'API offline'}</button>
           {user ? <><span className="profile-avatar">{user.username.slice(0, 1).toUpperCase()}</span><div className="profile-text"><strong>{user.username}</strong><small>{formatRole(user.role)}{!user.approved && ' · Pending'}</small></div><button className="icon-button" onClick={() => void handleLogout()} disabled={busy || authBusy || !identityReady} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button></> : <><button className="button signin-button" disabled={authBusy} onClick={() => openAuth('login')}>Sign in</button><button className="button primary header-signup" disabled={authBusy} onClick={() => openAuth('register')}>Create account <ArrowUpRight size={16} /></button></>}
@@ -414,14 +417,10 @@ export default function App() {
           {history.length ? <div className="history-table-wrap"><table className="history-table"><thead><tr><th>Case reference</th><th>Time</th><th>Measurements</th><th>Status</th><th><span className="visually-hidden">Actions</span></th></tr></thead><tbody>{history.map(entry => <tr key={entry.id}><td><span className="case-icon"><FileJson size={18} /></span><strong>{entry.payload.sample_id || 'Unnamed case'}</strong></td><td>{new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td><td>{Object.keys(entry.payload.features).length} inputs</td><td><span className={`history-status ${entry.status === 'Validated' ? 'valid' : ''}`}>{entry.status}</span></td><td><div className="history-actions"><button className="text-button" onClick={() => { setValues(Object.fromEntries(Object.entries(entry.payload.features).map(([name, value]) => [name, String(value)]))); setSampleId(entry.payload.sample_id || ''); setValidated(false); setModelPending(false); setPrediction(null); setErrors({}); setIsExample(false); navigate('assessment'); }}>Reopen <ArrowUpRight size={14} /></button><button className="icon-button" onClick={() => downloadJson(entry.payload)} aria-label={`Export ${entry.payload.sample_id || 'case'}`}><ArrowDownToLine size={16} /></button></div></td></tr>)}</tbody></table></div> : <div className="empty-state"><History size={32} /><h3>A fresh start.</h3><p>Your validated cases will appear here as you use the assessment workspace.</p><button className="button primary" onClick={() => navigate('assessment')}>Start an assessment <ArrowRight size={16} /></button></div>}
         </>}
 
-        {page === 'about' && <>
-          <div className="page-heading"><div><p className="eyebrow rose-text">KNOWLEDGE WITH PURPOSE</p><h1>A thoughtful space for breast health.</h1><p>Built around the people learning, researching, and caring.</p></div><span className="brand-mark"><HeartHandshake size={30} strokeWidth={1.5} /></span></div>
-          <section className="about-intro"><h2>Different perspectives.<br /><em>A shared need for clarity.</em></h2><p>This project brings reliable breast health reading and structured measurement tools into one calm workspace. Patients can learn at their own pace. Students can explore the foundations. Researchers and doctors can prepare inputs for an assessment workflow.</p><p>The research approach uses LRMeta cross-validation stacking: base learners produce predictions that a Logistic Regression meta-learner combines. Structured measurement input and professional access controls support the workflow.</p></section>
-          <div className="section-heading"><div><p className="eyebrow">ACCESS THAT MAKES SENSE</p><h2>What each workspace includes</h2></div></div>
-          <div className="permissions-table-wrap"><table className="permissions-table"><thead><tr><th>Workspace</th><th>Learning library</th><th>Input validation</th><th>Professional assessment</th></tr></thead><tbody>{roles.map(role => <tr key={role.id}><td><role.icon size={18} /><strong>{role.label}</strong></td><td>Role-specific resources</td><td>{role.id === 'patient' ? '—' : role.id === 'student' ? 'Practice workspace' : 'After account approval'}</td><td>{role.id === 'patient' || role.id === 'student' ? '—' : 'After approval'}</td></tr>)}</tbody></table></div>
-          <div className="about-cards"><article><ShieldCheck size={25} /><h3>Real access controls</h3><p>Account permissions are checked by the API. Professional accounts require administrator approval before restricted tools open.</p></article><article><BookOpen size={25} /><h3>Sources beside the learning</h3><p>Each resource links to the original source, including NCI, WHO, UCI, and published research. Read further and bring questions to your care or research team.</p></article><article><Heart size={25} /><h3>Clear about its limits</h3><p>The public calculator estimates malignancy for a measured breast mass. A qualified clinician interprets its score alongside pathology findings.</p></article></div>
-          <div className="care-note"><Leaf size={21} /><p><strong>Designed to grow with your work.</strong> The public prediction calculator accepts 30 cell measurements without an account. Signed-in workspaces offer additional tools according to role.</p></div>
-        </>}
+        {page === 'about' && <AboutPage navigate={navigate} />}
+        {page === 'model' && <ModelPage key={user?.id ?? 'guest'} user={user} ready={identityReady} signIn={() => openAuth('login', 'student')} />}
+        {page === 'dataset' && <DatasetUploadPage />}
+        {page === 'shap' && <ShapExplorerPage />}
         
       </main>
       <SiteFooter navigate={navigate} openPrivacy={() => setPrivacyOpen(true)} />

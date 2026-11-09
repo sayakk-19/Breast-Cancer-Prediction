@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -21,6 +21,8 @@ from .auth import (
 from .database import AccountStore, DatabaseUnavailableError, create_auth_store, load_environment
 from .features import DISCLAIMER, FEATURE_DEFINITIONS, FEATURE_ORDER, GROUPS
 from .inference import EXPORT_DIRECTORY, ModelBundle
+from .dataset_tools import analyze, explain, read_dataset
+from .model_guide import model_guide
 from .schemas import (
     PredictionResponse,
     CurrentUserResponse,
@@ -140,6 +142,14 @@ def prediction_user(user: UserResponse = Depends(measurement_user)) -> UserRespo
     return user
 
 
+def model_reader(user: UserResponse = Depends(current_user)) -> UserResponse:
+    if user.role not in {"student", "researcher"}:
+        raise HTTPException(status_code=403, detail={"code": "ROLE_NOT_ALLOWED", "message": "The model walkthrough is for students and researchers only."})
+    if not user.approved:
+        raise HTTPException(status_code=403, detail={"code": "APPROVAL_REQUIRED", "message": "Your researcher account is awaiting administrator approval."})
+    return user
+
+
 def create_app(database_path: Path | None = None, *, model_directory: Path = EXPORT_DIRECTORY) -> FastAPI:
     """Build the app; an explicit database path supports isolated local tests."""
     if database_path is None:
@@ -192,7 +202,7 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
                 content={"detail": {"code": "ORIGIN_NOT_ALLOWED", "message": "This browser origin is not allowed."}},
             )
         response = await call_next(request)
-        if request.url.path.startswith("/api/v1/auth") or request.url.path in {"/api/v1/library", "/api/v1/predict", "/api/v1/calculator/predict"}:
+        if request.url.path.startswith("/api/v1/auth") or request.url.path in {"/api/v1/library", "/api/v1/predict", "/api/v1/calculator/predict", "/api/v1/model-guide", "/api/v1/dataset/analyze", "/api/v1/dataset/shap"}:
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -224,6 +234,10 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
             features=list(FEATURE_DEFINITIONS),
             disclaimer=DISCLAIMER,
         )
+
+    @application.get("/api/v1/model-guide", tags=["Education"])
+    def read_model_guide(_user: UserResponse = Depends(model_reader)) -> dict:
+        return model_guide(model_directory)
 
     @application.post(
         "/api/v1/auth/register",
@@ -326,6 +340,23 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
         return PredictionResponse(
             sample_id=sample.sample_id, prediction=prediction, probability=probability, threshold=bundle.threshold
         )
+
+    def dataset_bundle(request: Request):
+        bundle = request.app.state.model_bundle
+        if bundle is None:
+            raise HTTPException(status_code=503, detail=PredictionUnavailableDetail().model_dump())
+        return bundle
+
+    @application.post("/api/v1/dataset/analyze", tags=["Model workspace"])
+    async def analyze_dataset(file: UploadFile, request: Request, _user: UserResponse = Depends(model_reader)) -> dict:
+        frame, warnings, labels = await read_dataset(file)
+        return {"rows": len(frame), "warnings": warnings + (["No diagnosis column found; predictions are available but evaluation metrics are omitted."] if labels is None else []), "models": analyze(dataset_bundle(request), frame, labels)}
+
+    @application.post("/api/v1/dataset/shap", tags=["Model workspace"])
+    async def explain_dataset(file: UploadFile, request: Request, _user: UserResponse = Depends(model_reader)) -> dict:
+        frame, warnings, _labels = await read_dataset(file)
+        contributions = explain(dataset_bundle(request), frame.head(100))
+        return {"rows": len(frame), "warnings": warnings + ["SHAP uses up to the first 100 rows and the saved tree learners. Each value is mean absolute feature contribution, averaged across available tree models."], "models": [{"name": item["feature"], "accuracy": item["value"], "auc": None} for item in contributions]}
 
     return application
 
