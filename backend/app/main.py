@@ -1,5 +1,6 @@
 """Role-restricted education and measurement API, with saved ensemble inference."""
 
+import threading
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -158,12 +159,6 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
     secure_cookie = configured_secure_cookie()
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        try:
-            app.state.model_bundle = ModelBundle(model_directory)
-        except Exception as error:
-            # A missing runtime or damaged export must not take the rest of the app offline.
-            logging.getLogger(__name__).warning("Prediction bundle unavailable: %s", error)
-            app.state.model_bundle = None
         yield
 
     application = FastAPI(
@@ -177,6 +172,20 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
         ),
     )
     application.state.model_bundle = None
+    application.state.model_lock = threading.Lock()
+    application.state.model_failed = False
+
+    def get_model_bundle(app: FastAPI):
+        """Load the model on first use so startup (and registration) stay light."""
+        if app.state.model_bundle is None and not app.state.model_failed:
+            with app.state.model_lock:
+                if app.state.model_bundle is None and not app.state.model_failed:
+                    try:
+                        app.state.model_bundle = ModelBundle(model_directory)
+                    except Exception as error:
+                        logging.getLogger(__name__).warning("Prediction bundle unavailable: %s", error)
+                        app.state.model_failed = True
+        return app.state.model_bundle
     application.state.auth_store = create_auth_store(database_path)
     application.state.library = [
         ResourceResponse.model_validate(resource)
@@ -224,7 +233,7 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
 
     @application.get("/api/v1/health", response_model=HealthResponse, tags=["Workspace"])
     async def health() -> HealthResponse:
-        return HealthResponse(prediction_available=application.state.model_bundle is not None)
+          return HealthResponse(prediction_available=application.state.model_bundle is not None or model_directory.exists())
 
     @application.get("/api/v1/features", response_model=FeaturesResponse, tags=["Measurements"])
     async def features() -> FeaturesResponse:
@@ -327,7 +336,7 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
         responses={503: {"model": PredictionUnavailableResponse}},
     )
     def predict(sample: MeasurementRequest, request: Request) -> PredictionResponse:
-        bundle = request.app.state.model_bundle
+        bundle = get_model_bundle(request.app)
         if bundle is None:
             raise HTTPException(status_code=503, detail=PredictionUnavailableDetail().model_dump())
         try:
