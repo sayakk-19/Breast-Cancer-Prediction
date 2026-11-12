@@ -284,7 +284,7 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
             path="/api/v1",
             secure=secure_cookie,
             httponly=True,
-            samesite="lax",
+            samesite="none" if secure_cookie else "lax",
         )
         return LoginResponse(user=user, access_token=token)
 
@@ -302,7 +302,7 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
             path="/api/v1",
             secure=secure_cookie,
             httponly=True,
-            samesite="lax",
+            samesite="none" if secure_cookie else "lax",
         )
         return LogoutResponse(message="Signed out.")
 

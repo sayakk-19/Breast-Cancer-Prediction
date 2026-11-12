@@ -21,6 +21,17 @@ export class ApiError extends Error {
 
 const base = (import.meta.env?.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
+const TOKEN_KEY = 'cellscope_token';
+const getToken = (): string | null => {
+  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+};
+const setToken = (token: string | null) => {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch { /* storage unavailable */ }
+};
+
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 12000);
@@ -28,11 +39,17 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     const response = await fetch(`${base}/api/v1${path}`, {
       credentials: 'include',
       ...options,
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        ...options.headers,
+      },
       signal: controller.signal,
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
+      if (response.status === 401 && path !== '/auth/login') setToken(null);
+
       const detail = data?.detail;
       const message = typeof detail === 'string' ? detail
         : Array.isArray(detail) ? detail.map((item: { msg: string }) => item.msg).join('; ')
@@ -40,6 +57,11 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
       throw new ApiError(message, response.status, detail?.code);
     }
     if (data === null) throw new ApiError('The service returned an unreadable response. Please try again later.', response.status);
+
+    if (path === '/auth/login' && (data as { access_token?: string }).access_token) {
+      setToken((data as { access_token: string }).access_token);
+    }
+    if (path === '/auth/logout') setToken(null);
     return data as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -98,4 +120,35 @@ export function downloadJson(payload: Payload, filename = 'breast-cancer-assessm
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+export async function upload<T>(path: string, file: File): Promise<T> {
+  const body = new FormData();
+  body.append('file', file);
+  const token = getToken();
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 90000);
+  try {
+    const response = await fetch(`${base}/api/v1${path}`, {
+      method: 'POST',
+      body, // no Content-Type: the browser sets the multipart boundary
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      signal: controller.signal,
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      const detail = data?.detail;
+      const message = typeof detail === 'string' ? detail
+        : Array.isArray(detail) ? detail.map((item: { msg: string }) => item.msg).join('; ')
+        : detail?.message || 'The request could not be completed.';
+      throw new ApiError(message, response.status, detail?.code);
+    }
+    return data as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError('We could not reach the service. Please try again shortly.', 0);
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
