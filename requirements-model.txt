@@ -1,8 +1,8 @@
 # Inference environment: Python 3.12. Versions match the sklearn and Keras exports.
 -r requirements.txt
 scikit-learn==1.6.1
-keras==3.13.2
-tensorflow-cpu==2.20.0
+# keras==3.13.2
+# tensorflow-cpu==2.20.0
 numpy>=2,<2.3
 pandas>=2,<3
 joblib>=1.4,<2

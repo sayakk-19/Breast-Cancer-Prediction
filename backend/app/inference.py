@@ -6,8 +6,41 @@ from pathlib import Path
 
 from .features import FEATURE_ORDER
 
+import numpy as np
+from scipy.special import expit  # installed with scikit-learn
+
 EXPORT_DIRECTORY = Path(__file__).resolve().parents[2] / "ml_model" / "model_exports"
 
+_ACTIVATIONS = {
+    "relu": lambda x: np.maximum(x, 0),
+    "sigmoid": expit,
+    "tanh": np.tanh,
+    "linear": lambda x: x,
+    "softmax": lambda x: (lambda e: e / e.sum(axis=1, keepdims=True))(
+        np.exp(x - x.max(axis=1, keepdims=True))
+    ),
+}
+
+
+class NumpyMLP:
+    """Runs the exported Keras network with NumPy only (no TensorFlow)."""
+
+    def __init__(self, spec):
+        self.spec = spec
+
+    def predict(self, X):
+        x = np.asarray(X, dtype=np.float32)
+        for layer in self.spec:
+            if layer["type"] == "dense":
+                x = _ACTIVATIONS[layer["act"]](x @ layer["W"] + layer["b"])
+            else:  # batch normalization
+                x = (x - layer["mean"]) / np.sqrt(layer["var"] + layer["eps"])
+                x = x * layer["gamma"] + layer["beta"]
+        return x
+
+    # Lets the existing code call self.network(scaled, training=False) unchanged.
+    def __call__(self, X, training=False):
+        return self.predict(X)
 
 class ModelBundle:
     def __init__(self, directory: Path):
@@ -15,7 +48,6 @@ class ModelBundle:
         metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8-sig"))
         import joblib
         import pandas as pd
-        from tensorflow import keras
 
         self.dataframe = pd.DataFrame
         self.columns = metadata["feature_order"]
@@ -30,7 +62,7 @@ class ModelBundle:
 
         self.models = joblib.load(directory / "base_models.joblib")
         self.scaler = joblib.load(directory / "ann_scaler.joblib")
-        self.network = keras.models.load_model(directory / "ann.keras", compile=False)
+        self.network = NumpyMLP(joblib.load(directory / "ann_numpy.joblib"))
         self.meta = joblib.load(directory / "lr_meta.joblib")
         self.order = metadata["model_order"]
         if (len(self.order) != 9 or len(set(self.order)) != 9
