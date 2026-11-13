@@ -15,7 +15,7 @@ async def read_dataset(file: UploadFile) -> tuple[Any, list[str], Any | None]:
     if len(raw) > MAX_BYTES: raise HTTPException(413, detail={"message": "The CSV is larger than 5 MB."})
     try:
         import pandas as pd
-        frame = pd.read_csv(BytesIO(raw))
+        frame = pd.read_csv(BytesIO(raw), nrows=2001)
     except Exception as error:
         raise HTTPException(422, detail={"message": "The CSV could not be read. Use a comma-separated file with one header row."}) from error
     normalized = {str(column).strip().lower().replace(" ", "_"): column for column in frame.columns}
@@ -34,7 +34,12 @@ async def read_dataset(file: UploadFile) -> tuple[Any, list[str], Any | None]:
     if bad: raise HTTPException(422, detail={"message": "Some required features are non-numeric or missing.", "invalid_features": bad, "guidance": "Convert these columns to finite, non-negative numbers in the same units used during model training."})
     if (numeric < 0).any().any(): raise HTTPException(422, detail={"message": "The model requires non-negative measurements.", "guidance": "Review units and negative values before uploading."})
     label = next((normalized[name] for name in LABELS if name in normalized), None)
-    return numeric, ["Feature names and values match the model schema."], frame[label] if label else None
+    if label is not None:
+        encoded = frame[label].astype(str).str.strip().str.upper().map({'M': 1, 'MALIGNANT': 1, '1': 1, '1.0': 1, 'B': 0, 'BENIGN': 0, '0': 0, '0.0': 0})
+        if encoded.isna().any():
+            raise HTTPException(422, detail={'message': 'Diagnosis labels must be B/M, benign/malignant, or 0/1 (1 = malignant). Fix missing or invalid labels, or remove the label column for scoring only.'})
+        frame[label] = encoded.astype(int)
+    return numeric, ["Breast-mass measurement schema validated. Clinical origin and units cannot be verified automatically. Metrics apply only to this uploaded dataset and do not establish clinical performance."], frame[label] if label else None
 
 def metric(value, labels):
     if labels is None: return None, None
@@ -43,6 +48,15 @@ def metric(value, labels):
     encoded = labels.astype(str).str.strip().str.upper().map({"M": 1, "MALIGNANT": 1, "1": 1, "B": 0, "BENIGN": 0, "0": 0})
     if encoded.isna().any(): return None, None
     return float(accuracy_score(encoded, value >= .5)), float(roc_auc_score(encoded, value)) if encoded.nunique() > 1 else None
+
+def detailed_metrics(value, labels):
+    if labels is None: return {}
+    from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
+    y = labels.astype(str).str.strip().str.upper().map({'M': 1, 'MALIGNANT': 1, '1': 1, 'B': 0, 'BENIGN': 0, '0': 0})
+    if y.isna().any(): return {}
+    predicted = value >= .5
+    tn, fp, fn, tp = confusion_matrix(y, predicted, labels=[0, 1]).ravel()
+    return {'precision': float(precision_score(y, predicted, zero_division=0)), 'recall': float(recall_score(y, predicted, zero_division=0)), 'f1': float(f1_score(y, predicted, zero_division=0)), 'specificity': float(tn / (tn + fp)) if tn + fp else None, 'false_negatives': int(fn), 'false_positives': int(fp)}
 
 def analyze(bundle, frame, labels):
     import numpy as np
@@ -59,11 +73,11 @@ def analyze(bundle, frame, labels):
             raise HTTPException(422, detail={"message": "The models could not score these measurements. Check units and values."})
         probabilities.append(probability)
         accuracy, auc = metric(probability, labels)
-        models.append({"name": name, "accuracy": accuracy, "auc": auc, "mean_probability": float(np.mean(probability))})
+        models.append({"name": name, "accuracy": accuracy, "auc": auc, "mean_probability": float(np.mean(probability)), **detailed_metrics(probability, labels)})
     meta_frame = bundle.dataframe(np.column_stack(probabilities), columns=bundle.order)
     ensemble = bundle.meta.predict_proba(meta_frame)[:, list(bundle.meta.classes_).index(1)]
     accuracy, auc = metric(ensemble, labels)
-    models.append({"name": "Stacked ensemble", "accuracy": accuracy, "auc": auc, "mean_probability": float(np.mean(ensemble))})
+    models.append({"name": "Stacked ensemble", "accuracy": accuracy, "auc": auc, "mean_probability": float(np.mean(ensemble)), **detailed_metrics(ensemble, labels)})
     return models
 
 def explain(bundle, frame):

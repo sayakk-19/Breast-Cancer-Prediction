@@ -33,6 +33,7 @@ const setToken = (token: string | null) => {
 };
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const requestToken = getToken();
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 90000);
   try {
@@ -41,14 +42,14 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        ...(requestToken ? { Authorization: `Bearer ${requestToken}` } : {}),
         ...options.headers,
       },
       signal: controller.signal,
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      if (response.status === 401 && path !== '/auth/login') setToken(null);
+      if (response.status === 401 && path !== '/auth/login' && getToken() === requestToken) setToken(null);
 
       const detail = data?.detail;
       const message = typeof detail === 'string' ? detail

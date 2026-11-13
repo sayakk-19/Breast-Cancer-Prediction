@@ -1,0 +1,16 @@
+.model-tools { --chart-bar: #397e75; color: var(--ink); }
+.tool-card, .shap-figure { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: clamp(16px, 3vw, 28px); margin: 24px 0; }
+.tool-card p, .shap-figure p { color: var(--muted); line-height: 1.65; margin: 12px 0; }
+.shap-figure svg { display: block; width: 100%; height: auto; margin-top: 20px; }
+.model-tools input[type=file] { max-width: 100%; color: inherit; }
+.model-tools table { width: 100%; border-collapse: collapse; }
+.model-tools th, .model-tools td { padding: 12px; text-align: left; border-bottom: 1px solid var(--line); }
+.model-tools .table-scroll { overflow-x: auto; }
+@media(prefers-color-scheme: dark) {
+  :root { color-scheme: dark; --ink: #e1eee7; --muted: #b2c4ba; --surface: #192b25; --canvas: #102019; --line: #40594d; --soft: #243b30; --forest: #9cd7ba; }
+  .model-tools { --chart-bar: #78c9ba; }
+  .app-shell { background: var(--canvas); }
+  .tool-card, .shap-figure, .calc-sheet, .calc-result, .calc-notes, .modal, .public-header, .sidebar { background: var(--surface); color: var(--ink); }
+  .calc-table input { background: var(--canvas); color: var(--ink); border-color: var(--line); }
+}
+@media(prefers-reduced-motion: reduce) { .model-tools * { animation: none !important; transition: none !important; } }

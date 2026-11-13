@@ -136,7 +136,7 @@ export default function PredictionCalculator({ user, signIn, schema, health, con
               const key = row.key + '_' + group.id;
               return <td key={key}><input id={'calc-' + key} type="number" inputMode="decimal" min="0" step="any"
                 aria-label={row.label + ', ' + group.label} aria-required="true" aria-invalid={!!errors[key]}
-                aria-describedby={errors[key] ? 'error-' + key : undefined} placeholder="—" value={values[key] ?? ''}
+                aria-describedby={errors[key] ? 'error-' + key : undefined} placeholder={'e.g. ' + row.example[group.id]} value={values[key] ?? ''}
                 disabled={busy} onChange={event => edit(key, event.target.value)} />
                 {errors[key] && <small id={'error-' + key}>{errors[key]}</small>}</td>;
             })}

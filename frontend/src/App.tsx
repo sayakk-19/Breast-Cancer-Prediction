@@ -419,8 +419,8 @@ export default function App() {
 
         {page === 'about' && <AboutPage navigate={navigate} />}
         {page === 'model' && <ModelPage key={user?.id ?? 'guest'} user={user} ready={identityReady} signIn={() => openAuth('login', 'student')} />}
-        {page === 'dataset' && <DatasetUploadPage />}
-        {page === 'shap' && <ShapExplorerPage />}
+        {page === 'dataset' && <DatasetUploadPage user={user} />}
+        {page === 'shap' && <ShapExplorerPage user={user} />}
         
       </main>
       <SiteFooter navigate={navigate} openPrivacy={() => setPrivacyOpen(true)} />

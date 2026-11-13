@@ -151,6 +151,11 @@ def model_reader(user: UserResponse = Depends(current_user)) -> UserResponse:
         raise HTTPException(status_code=403, detail={"code": "APPROVAL_REQUIRED", "message": "Your researcher account is awaiting administrator approval."})
     return user
 
+def dataset_reader(user: UserResponse = Depends(current_user)) -> UserResponse:
+    if not user.approved or user.role not in {'student', 'researcher', 'doctor'}:
+        raise HTTPException(403, detail='Dataset tools require a student or approved professional account.')
+    return user
+
 
 def create_app(database_path: Path | None = None, *, model_directory: Path = EXPORT_DIRECTORY) -> FastAPI:
     """Build the app; an explicit database path supports isolated local tests."""
@@ -175,6 +180,18 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
     application.state.model_bundle = None
     application.state.model_lock = threading.Lock()
     application.state.model_failed = False
+    analysis_lock = threading.Lock()
+    reference_cache = None
+
+    def limited_analysis(function, *args):
+        if not analysis_lock.acquire(blocking=False):
+            raise HTTPException(429, detail='Another analysis is running. Please retry shortly.')
+        try:
+            from threadpoolctl import threadpool_limits
+            with threadpool_limits(limits=1):
+                return function(*args)
+        finally:
+            analysis_lock.release()
 
     def get_model_bundle(app: FastAPI):
         """Load the model on first use so startup (and registration) stay light."""
@@ -365,7 +382,10 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
             'Content-Disposition': 'attachment; filename="cellscope-report.pdf"', 'Cache-Control': 'no-store'})
 
     @application.get('/api/v1/dataset/shap', tags=['Model workspace'])
-    def saved_explanations(request: Request, _user: UserResponse = Depends(model_reader)):
+    def saved_explanations(request: Request, _user: UserResponse = Depends(dataset_reader)):
+        nonlocal reference_cache
+        if reference_cache is not None:
+            return reference_cache
         import pandas as pd
         bundle = dataset_bundle(request)
         path = EXPORT_DIRECTORY.parent / 'breast_cancer_data.csv'
@@ -373,22 +393,32 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
             raise HTTPException(503, detail='Reference dataset unavailable. Upload a CSV to generate explanations.')
         frame = pd.read_csv(path, nrows=100)
         frame.columns = frame.columns.str.strip().str.replace(' ', '_')
-        contributions = explain(bundle, frame.loc[:, bundle.keys])
-        return {'rows': len(frame), 'warnings': ['Saved tree models on reference data; these explanations are not your personal result.'], 'models': [{'name': item['feature'], 'accuracy': item['value'], 'auc': None} for item in contributions]}
+        contributions = limited_analysis(explain, bundle, frame.loc[:, bundle.keys])
+        reference_cache = {'rows': len(frame), 'warnings': ['Saved tree models on reference data; these explanations are not your personal result.'], 'models': [{'name': item['feature'], 'accuracy': item['value'], 'auc': None} for item in contributions]}
+        return reference_cache
 
     @application.post("/api/v1/dataset/analyze", tags=["Model workspace"])
-    async def analyze_dataset(file: UploadFile, request: Request, _user: UserResponse = Depends(model_reader)) -> dict:
+    async def analyze_dataset(file: UploadFile, request: Request, _user: UserResponse = Depends(dataset_reader)) -> dict:
         frame, warnings, labels = await read_dataset(file)
         bundle = await run_in_threadpool(dataset_bundle, request)
-        models = await run_in_threadpool(analyze, bundle, frame, labels)
+        models = await run_in_threadpool(limited_analysis, analyze, bundle, frame, labels)
         return {"rows": len(frame), "warnings": warnings + (["No diagnosis column found; evaluation metrics are omitted."] if labels is None else []), "models": models}
 
     @application.post("/api/v1/dataset/shap", tags=["Model workspace"])
-    async def explain_dataset(file: UploadFile, request: Request, _user: UserResponse = Depends(model_reader)) -> dict:
+    async def explain_dataset(file: UploadFile, request: Request, _user: UserResponse = Depends(dataset_reader)) -> dict:
         frame, warnings, _labels = await read_dataset(file)
         bundle = await run_in_threadpool(dataset_bundle, request)
-        contributions = await run_in_threadpool(explain, bundle, frame.head(100))
+        contributions = await run_in_threadpool(limited_analysis, explain, bundle, frame.head(100))
         return {"rows": len(frame), "warnings": warnings + ["SHAP uses up to the first 100 rows. Absolute contributions are normalized within each available tree model, then averaged."], "models": [{"name": item["feature"], "accuracy": item["value"], "auc": None} for item in contributions]}
+
+    @application.post('/api/v1/dataset/audit', tags=['Model workspace'])
+    async def professional_audit(file: UploadFile, request: Request, _user: UserResponse = Depends(prediction_user)):
+        frame, warnings, labels = await read_dataset(file)
+        if labels is None:
+            raise HTTPException(422, detail='Professional evaluation exports require known diagnosis labels.')
+        bundle = await run_in_threadpool(dataset_bundle, request)
+        models = await run_in_threadpool(limited_analysis, analyze, bundle, frame, labels)
+        return {'rows': len(frame), 'models': models, 'warnings': warnings + ['Research evaluation only. Verify independence from training data, class balance, measurement units and false-negative cases before interpreting performance.'], 'threshold': bundle.threshold}
 
     return application
 
