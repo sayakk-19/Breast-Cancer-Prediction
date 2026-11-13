@@ -6,7 +6,7 @@ from fastapi import HTTPException, UploadFile
 from .features import FEATURE_ORDER
 
 MAX_BYTES = 5 * 1024 * 1024
-LABELS = {"diagnosis", "label", "target"}
+LABELS = ("diagnosis", "label", "target")
 
 async def read_dataset(file: UploadFile) -> tuple[Any, list[str], Any | None]:
     if not file.filename or not file.filename.lower().endswith(".csv"):
@@ -19,13 +19,18 @@ async def read_dataset(file: UploadFile) -> tuple[Any, list[str], Any | None]:
     except Exception as error:
         raise HTTPException(422, detail={"message": "The CSV could not be read. Use a comma-separated file with one header row."}) from error
     normalized = {str(column).strip().lower().replace(" ", "_"): column for column in frame.columns}
+    if frame.empty:
+        raise HTTPException(422, detail={"message": "The CSV contains no data rows."})
+    if len(frame) > 2000:
+        raise HTTPException(422, detail={"message": "Upload at most 2,000 data rows per analysis (excluding the header)."})
     missing = [feature for feature in FEATURE_ORDER if feature not in normalized]
     if missing:
         raise HTTPException(422, detail={"message": "The dataset needs feature engineering before scoring.", "missing_features": missing, "guidance": "Provide all 30 training measurements with the exact names shown above. Do not fill missing columns with guessed values."})
     selected = frame[[normalized[feature] for feature in FEATURE_ORDER]].copy()
     selected.columns = list(FEATURE_ORDER)
     numeric = selected.apply(pd.to_numeric, errors="coerce")
-    bad = numeric.columns[numeric.isna().any()].tolist()
+    import numpy as np
+    bad = numeric.columns[(~np.isfinite(numeric)).any()].tolist()
     if bad: raise HTTPException(422, detail={"message": "Some required features are non-numeric or missing.", "invalid_features": bad, "guidance": "Convert these columns to finite, non-negative numbers in the same units used during model training."})
     if (numeric < 0).any().any(): raise HTTPException(422, detail={"message": "The model requires non-negative measurements.", "guidance": "Review units and negative values before uploading."})
     label = next((normalized[name] for name in LABELS if name in normalized), None)
@@ -36,23 +41,37 @@ def metric(value, labels):
     import numpy as np
     from sklearn.metrics import accuracy_score, roc_auc_score
     encoded = labels.astype(str).str.strip().str.upper().map({"M": 1, "MALIGNANT": 1, "1": 1, "B": 0, "BENIGN": 0, "0": 0})
-    if encoded.isna().any() or encoded.nunique() < 2: return None, None
-    return float(accuracy_score(encoded, value >= .5)), float(roc_auc_score(encoded, value))
+    if encoded.isna().any(): return None, None
+    return float(accuracy_score(encoded, value >= .5)), float(roc_auc_score(encoded, value)) if encoded.nunique() > 1 else None
 
 def analyze(bundle, frame, labels):
+    import numpy as np
+    frame = frame.loc[:, bundle.keys].copy()
+    frame.columns = bundle.columns
     models = []
+    probabilities = []
     for name in bundle.order:
         if name == "ANN":
-            probability = bundle.network(bundle.scaler.transform(frame), training=False).numpy().reshape(-1)
+            probability = np.asarray(bundle.network(bundle.scaler.transform(frame), training=False)).reshape(-1)
         else:
             estimator = bundle.models[name]; index = list(estimator.classes_).index(1); probability = estimator.predict_proba(frame)[:, index]
-        accuracy, auc = metric(probability, labels); models.append({"name": name, "accuracy": accuracy, "auc": auc})
+        if not np.isfinite(probability).all():
+            raise HTTPException(422, detail={"message": "The models could not score these measurements. Check units and values."})
+        probabilities.append(probability)
+        accuracy, auc = metric(probability, labels)
+        models.append({"name": name, "accuracy": accuracy, "auc": auc, "mean_probability": float(np.mean(probability))})
+    meta_frame = bundle.dataframe(np.column_stack(probabilities), columns=bundle.order)
+    ensemble = bundle.meta.predict_proba(meta_frame)[:, list(bundle.meta.classes_).index(1)]
+    accuracy, auc = metric(ensemble, labels)
+    models.append({"name": "Stacked ensemble", "accuracy": accuracy, "auc": auc, "mean_probability": float(np.mean(ensemble))})
     return models
 
 def explain(bundle, frame):
-    """Mean absolute SHAP values from saved tree learners, averaged by feature."""
+    """Average normalized absolute SHAP importance, avoiding mixed raw units."""
     import numpy as np
     import shap
+    frame = frame.loc[:, bundle.keys].copy()
+    frame.columns = bundle.columns
     values = []
     for name in ("Random Forest", "Gradient Boosting", "LightGBM", "CatBoost"):
         model = bundle.models.get(name)
@@ -62,8 +81,15 @@ def explain(bundle, frame):
         try:
             result = shap.TreeExplainer(estimator).shap_values(frame)
             if isinstance(result, list):
-                result = result[1]
-            values.append(np.abs(np.asarray(result)).reshape(len(frame), -1).mean(axis=0))
+                result = result[list(estimator.classes_).index(1)]
+            result = np.asarray(result)
+            if result.ndim == 3:
+                result = result[:, :, list(estimator.classes_).index(1)]
+            if result.shape != frame.shape or not np.isfinite(result).all():
+                raise ValueError('Unexpected SHAP output shape or non-finite values.')
+            importance = np.abs(result).mean(axis=0)
+            # Raw SHAP units differ between tree families; average relative importance.
+            values.append(importance / importance.sum() if importance.sum() else importance)
         except Exception:
             continue
     if not values:

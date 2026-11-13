@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowRight, ArrowUpRight, Check, FlaskConical, LoaderCircle, RotateCcw, ScanLine } from 'lucide-react';
-import { request, validateValues } from './api';
-import type { FeatureSchema, Health } from './api';
+import { request, validateValues, getToken } from './api';
+import type { FeatureSchema, Health, User } from './api';
 import rows from './measurementRows.json';
 import './prediction.css';
 
@@ -23,7 +23,7 @@ const example = Object.fromEntries(rows.flatMap(row => groups.map(group =>
 )));
 
 type Result = { status: 'completed'; probability: number; prediction: 'benign' | 'malignant'; threshold: number };
-type Props = { schema: FeatureSchema | null; health: Health | null; connecting: boolean; reconnect: () => void };
+type Props = { user: User | null; signIn: () => void; schema: FeatureSchema | null; health: Health | null; connecting: boolean; reconnect: () => void };
 
 function percent(value: number) {
   const n = value * 100;
@@ -32,18 +32,39 @@ function percent(value: number) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 1 }) + '%';
 }
 
-export default function PredictionCalculator({ schema, health, connecting, reconnect }: Props) {
+export default function PredictionCalculator({ user, signIn, schema, health, connecting, reconnect }: Props) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [exampleLoaded, setExampleLoaded] = useState(false);
   const resultPanel = useRef<HTMLElement>(null);
   const inputSchema = schema ?? localSchema;
   const missing = validateValues(values, inputSchema);
   const filled = fields.length - Object.keys(missing).length;
   const ready = health?.prediction_available === true;
+
+  async function downloadReport() {
+    if (!user) { signIn(); return; }
+    setDownloading(true); setMessage('');
+    try {
+      const token = getToken();
+      const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+      const response = await fetch(base + '/api/v1/calculator/report', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ features: Object.fromEntries(inputSchema.feature_order.map(name => [name, Number(values[name])])) }),
+      });
+      if (response.status === 401) { signIn(); return; }
+      if (!response.ok) throw new Error('The report could not be generated. Please retry.');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a'); link.href = url; link.download = 'cellscope-report.pdf'; link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Report download failed.'); }
+    finally { setDownloading(false); }
+  }
 
   function replaceValues(next: Record<string, string>, isExample: boolean) {
     setValues(next); setErrors({}); setResult(null); setMessage(''); setExampleLoaded(isExample);
@@ -136,7 +157,9 @@ export default function PredictionCalculator({ schema, health, connecting, recon
         </div>
         {message && <p role="alert" className="calc-error">{message}</p>}
         {!ready && <div className="calc-availability" role="status">{connecting ? 'Checking service availability…' : <>{health ? 'The prediction model is unavailable.' : 'The prediction service is offline.'} <button type="button" className="text-button" onClick={reconnect}>Retry connection</button></>}</div>}
-        <button type="submit" className="button primary full-width" disabled={busy || !ready}>{busy ? <LoaderCircle size={17} className="spin" /> : null}{busy ? 'Calculating…' : 'Calculate probability'}<ArrowRight size={17} /></button>
+        {result && <div role="status" className={'calc-outcome ' + result.prediction}><strong>{result.prediction === 'malignant' ? 'Model result: likely malignant' : 'Model result: likely benign'}</strong><p>{result.prediction === 'malignant' ? 'Please arrange clinical review of this finding.' : 'This result does not rule out cancer. Clinical confirmation is still needed.'}</p></div>}
+        <div className={result?.prediction === 'malignant' ? 'calc-warning-outline' : ''}><button type="submit" className="button primary full-width" disabled={busy || !ready}>{busy ? <LoaderCircle size={17} className="spin" /> : null}{busy ? 'Calculating…' : 'Calculate probability'}<ArrowRight size={17} /></button></div>
+        {result && <button type="button" className="button secondary full-width" disabled={downloading || busy} onClick={() => void downloadReport()}>{downloading ? 'Preparing report…' : 'Download PDF report'}</button>}
       </section>
       <section className="calc-notes"><p className="calc-caption">INTERPRETING THE SCORE</p>
         <p>The percentage estimates how likely the <strong>measured mass</strong> is to be malignant. A clinician interprets the findings alongside your pathology report.</p>

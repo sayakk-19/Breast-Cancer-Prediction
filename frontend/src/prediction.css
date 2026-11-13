@@ -32,3 +32,7 @@
 @media(max-width:760px){.calc-layout { grid-template-columns:1fr; }.calc-side {position:static;}.calc-specimen {width:90px;}.calc-sheet-head {flex-wrap:wrap;}.calc-table th,.calc-table td {padding:6px 3px;}.calc-table tbody th,.calc-table thead th {font-size:12px;}.calc-table input {padding:6px 4px;font-size:16px;}.calc-result .button {min-height:46px;}}
 @media(max-width:520px){.calc-specimen {display:none;}.calc-sheet {padding:13px 9px;}.calc-intro {padding:24px 18px;}.calc-table th:first-child {width:27%;}.calc-table input {appearance:textfield;}.calc-table input::-webkit-inner-spin-button {appearance:none;}.calc-table th {overflow-wrap:anywhere;}.calc-guide {font-size:13px;}}
 
+.calc-outcome { padding: 16px; margin: 16px 0; border-radius: 12px; border: 1px solid; }
+.calc-outcome.benign { background: #e9f7ed; color: #205635; border-color: #7ab98c; }
+.calc-outcome.malignant { background: #fff0f0; color: #8b2525; border-color: #d77878; }
+.calc-warning-outline { padding: 5px; border: 2px solid #bc3535; border-radius: 14px; margin-bottom: 12px; }

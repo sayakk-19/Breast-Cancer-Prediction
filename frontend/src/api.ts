@@ -22,7 +22,7 @@ export class ApiError extends Error {
 const base = (import.meta.env?.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 const TOKEN_KEY = 'cellscope_token';
-const getToken = (): string | null => {
+export const getToken = (): string | null => {
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
 };
 const setToken = (token: string | null) => {
@@ -34,7 +34,7 @@ const setToken = (token: string | null) => {
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 12000);
+  const timeout = window.setTimeout(() => controller.abort(), 90000);
   try {
     const response = await fetch(`${base}/api/v1${path}`, {
       credentials: 'include',

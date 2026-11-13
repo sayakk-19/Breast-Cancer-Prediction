@@ -140,7 +140,7 @@ export default function App() {
       if (active && sessionEpoch.current === epoch) setUser(data.user);
     }).catch(async error => {
       if (active && sessionEpoch.current === epoch && error instanceof ApiError && error.status === 401) {
-        await request('/auth/logout', { method: 'POST' }).catch(() => {});
+        setUser(null);
       }
     }).finally(() => { if (active) setIdentityReady(true); });
     return () => { active = false; };
@@ -250,7 +250,7 @@ export default function App() {
     try {
       if (authMode === 'register') { await request('/auth/register', { method: 'POST', body: JSON.stringify({ ...credentials, role: authRole }) }); registered = true; }
       const result = await request<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
-      setUser(result.user); setHistory([]); setSaved([]); resetAssessment(); setAuthMode(null); navigate(page === 'model' ? 'model' : 'overview');
+      setUser(result.user); setHistory([]); setSaved([]); resetAssessment(); setAuthMode(null); navigate(['model', 'prediction', 'dataset', 'shap'].includes(page) ? page : 'overview');
       notify('success', result.user.approved ? `Welcome, ${result.user.username}. Your workspace is ready.` : 'Account created. Professional tools will become available after account approval.');
     } catch (error) {
       if (registered) { setAuthMode('login'); setAuthError('Your account was created. Please sign in to continue. ' + (error as Error).message); }
@@ -305,7 +305,7 @@ export default function App() {
     } catch (error) {
       if (sessionEpoch.current !== epoch) return;
       notify('error', (error as Error).message);
-      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) { sessionEpoch.current += 1; await request('/auth/logout', { method: 'POST' }).catch(() => {}); setUser(null); setHistory([]); setSaved([]); resetAssessment(); }
+      if (error instanceof ApiError && error.status === 401) { sessionEpoch.current += 1; setUser(null); setHistory([]); setSaved([]); resetAssessment(); }
     } finally { setBusy(false); }
   };
   const importFile = async (file: File) => {
@@ -374,7 +374,7 @@ export default function App() {
           <section className="project-callout"><div className="callout-icon"><FlaskConical size={30} /></div><div><p className="eyebrow">03 / BEHIND THE RESEARCH</p><h2>From cell measurements to considered research.</h2><p>Explore the project’s LRMeta stacking approach, measurement workflow, and role permissions.</p></div><button className="button secondary" onClick={() => navigate('about')}>About the project <ArrowUpRight size={17} /></button></section>
         </>}
 
-        {page === 'prediction' && <PredictionCalculator schema={schema} health={health} connecting={connecting} reconnect={() => void connect()} />}
+        {page === 'prediction' && <PredictionCalculator user={user} signIn={() => openAuth('login')} schema={schema} health={health} connecting={connecting} reconnect={() => void connect()} />}
 
         {page === 'library' && <>
           <div className="page-heading"><div><p className="eyebrow rose-text">MAKE ROOM FOR UNDERSTANDING</p><h1>Your learning library</h1><p>Clear explanations, thoughtful reading, and sources you can explore.</p></div><span className="pill"><BookOpen size={15} /> {user?.approved ? formatRole(user.role) : 'Public'} collection</span></div>

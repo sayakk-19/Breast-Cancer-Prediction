@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFi
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from .auth import (
     InvalidCredentialsError,
@@ -351,21 +352,43 @@ def create_app(database_path: Path | None = None, *, model_directory: Path = EXP
         )
 
     def dataset_bundle(request: Request):
-        bundle = request.app.state.model_bundle
+        bundle = get_model_bundle(request.app)
         if bundle is None:
             raise HTTPException(status_code=503, detail=PredictionUnavailableDetail().model_dump())
         return bundle
 
+    @application.post('/api/v1/calculator/report', tags=['Prediction'])
+    def download_report(sample: MeasurementRequest, request: Request, _user: UserResponse = Depends(current_user)):
+        from .report import prediction_pdf
+        result = predict(sample, request)
+        return Response(prediction_pdf(sample, result), media_type='application/pdf', headers={
+            'Content-Disposition': 'attachment; filename="cellscope-report.pdf"', 'Cache-Control': 'no-store'})
+
+    @application.get('/api/v1/dataset/shap', tags=['Model workspace'])
+    def saved_explanations(request: Request, _user: UserResponse = Depends(model_reader)):
+        import pandas as pd
+        bundle = dataset_bundle(request)
+        path = EXPORT_DIRECTORY.parent / 'breast_cancer_data.csv'
+        if not path.is_file():
+            raise HTTPException(503, detail='Reference dataset unavailable. Upload a CSV to generate explanations.')
+        frame = pd.read_csv(path, nrows=100)
+        frame.columns = frame.columns.str.strip().str.replace(' ', '_')
+        contributions = explain(bundle, frame.loc[:, bundle.keys])
+        return {'rows': len(frame), 'warnings': ['Saved tree models on reference data; these explanations are not your personal result.'], 'models': [{'name': item['feature'], 'accuracy': item['value'], 'auc': None} for item in contributions]}
+
     @application.post("/api/v1/dataset/analyze", tags=["Model workspace"])
     async def analyze_dataset(file: UploadFile, request: Request, _user: UserResponse = Depends(model_reader)) -> dict:
         frame, warnings, labels = await read_dataset(file)
-        return {"rows": len(frame), "warnings": warnings + (["No diagnosis column found; predictions are available but evaluation metrics are omitted."] if labels is None else []), "models": analyze(dataset_bundle(request), frame, labels)}
+        bundle = await run_in_threadpool(dataset_bundle, request)
+        models = await run_in_threadpool(analyze, bundle, frame, labels)
+        return {"rows": len(frame), "warnings": warnings + (["No diagnosis column found; evaluation metrics are omitted."] if labels is None else []), "models": models}
 
     @application.post("/api/v1/dataset/shap", tags=["Model workspace"])
     async def explain_dataset(file: UploadFile, request: Request, _user: UserResponse = Depends(model_reader)) -> dict:
         frame, warnings, _labels = await read_dataset(file)
-        contributions = explain(dataset_bundle(request), frame.head(100))
-        return {"rows": len(frame), "warnings": warnings + ["SHAP uses up to the first 100 rows and the saved tree learners. Each value is mean absolute feature contribution, averaged across available tree models."], "models": [{"name": item["feature"], "accuracy": item["value"], "auc": None} for item in contributions]}
+        bundle = await run_in_threadpool(dataset_bundle, request)
+        contributions = await run_in_threadpool(explain, bundle, frame.head(100))
+        return {"rows": len(frame), "warnings": warnings + ["SHAP uses up to the first 100 rows. Absolute contributions are normalized within each available tree model, then averaged."], "models": [{"name": item["feature"], "accuracy": item["value"], "auc": None} for item in contributions]}
 
     return application
 

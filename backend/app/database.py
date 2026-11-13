@@ -181,4 +181,4 @@ def create_auth_store(database_path: Path | None = None) -> AccountStore:
     database_url = os.environ.get("DATABASE_URL", "").strip()
     if database_url:
         return PostgresAuthStore(database_url, ttl)
-    return AuthStore(configured_database_path(), ttl)
+    raise ValueError("DATABASE_URL is required. Configure PostgreSQL; SQLite fallback is disabled.")
